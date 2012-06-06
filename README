@@ -6,7 +6,7 @@ bib files referenced in a \bibliography{} command in the LaTeX document.
 
 If there are unresolved references or citations, it will warn about them,
 listing the ones that could not be found.  It will also warn about TODOs,
-providing the included commands in tex/todo.tex are used.
+providing the included commands in tex/todo.sty are used.
 
 The main part of the script is in build.rb.  This should just be dropped into
 the same directory as the LaTeX file.  Customisation for a particular LaTeX file
