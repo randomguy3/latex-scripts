@@ -1,7 +1,7 @@
 # Name of the tex file (without extension)
-$MAIN_JOB = 'paper'
+$MAIN_JOB = 'example'
 # What to name the archive/final version pdf
-$DIST_NAME = 'paper_final'
+$DIST_NAME = 'example_final'
 # Any non-standard files to copy into the build dir
 $EXTRA_INCLUDES = []
 

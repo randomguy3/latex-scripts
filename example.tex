@@ -1,0 +1,55 @@
+\documentclass[a4paper]{article}
+
+\input{todo.tex}
+
+\title{Example \LaTeX File}
+\author{Alex Merry}
+\date{\today}
+
+
+\begin{document}
+
+\maketitle
+
+\section{Things Left To Do}
+\label{sec:todo}
+
+TODOs can be inline, off to the side or an item in a list.
+
+\TODO{In the margin}
+TODOs are normally placed in the margin.  This makes it easy to spot
+them as you scan through the paper.  Because there is not much space in
+the margin, the text should be short, such as ``flesh out'' or ``make
+clearer''.  The command for this is \textbackslash{}TODO\{\textit{margin
+text}\}.
+
+\TODOinline{An inline TODO is coloured blue}.  Inline TODOs, created
+with \textbackslash{}TODOinline\{\textit{text}\}, allow for a much
+larger block of text to be entered.  They are often used for longer
+comments, particularly for co-authors to read.
+
+\begin{itemize}
+\item When in a list environment, you may have an incomplete list
+\item Inserting a \textbackslash{}TODOitem as the last
+\textbackslash{}item allows you to indicate that more items should be
+added, like so:
+\TODOitem Insert more items
+\end{itemize}
+
+
+\section{Bad references}
+
+This is a valid reference: \ref{sec:todo}.  This is invalid:
+\ref{sec:does-not-exist}.  The build script will rebuild the required
+number of times to make the valid reference work, but will warn about
+the invalid one.
+
+We can also insert citatations, both proper ones (\cite{valid}) and
+improper ones (\cite{no-such-cite}).  The former will be found
+correctly, the latter will be warned about.
+
+\bibliographystyle{plain}
+\bibliography{examplebib}
+
+\end{document}
+% vi:tw=72

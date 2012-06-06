@@ -1,0 +1,44 @@
+This is a simple Rake-based infrastructure for building LaTeX files into PDFs.
+
+It runs pdflatex the necessary number of times to get cross-references right,
+including any from the bibliography.  It will automatically run BibTeX on any
+bib files referenced in a \bibliography{} command in the LaTeX document.
+
+If there are unresolved references or citations, it will warn about them,
+listing the ones that could not be found.  It will also warn about TODOs,
+providing the included commands in tex/todo.tex are used.
+
+The main part of the script is in build.rb.  This should just be dropped into
+the same directory as the LaTeX file.  Customisation for a particular LaTeX file
+happens in the Rakefile.
+
+* $MAIN_JOB specifies the base name of the tex file
+* $DIST_NAME is the name of the final version of the pdf, and of the archive
+* $EXTRA_INCLUDES allows extra files to be added
+
+The script works by copying all files into a build directory, and running
+pdflatex from that directory.  This keeps your working directory clean, and
+allows you to structure your files (particuarly included files) while treating
+them as being in the current directory from within your LaTeX file.
+
+The script will find standard TeX files (*.tex, *.sty, *.cls, *.clo,*.bst) from
+the current directory or the "tex" subdirectory.  It will also find TikZ diagrams
+(*.tikz) and images (*.pdf, *.png, *.jpg) that are in the "figures"
+subdirectory.  Any other files can be added to $EXTRA_INCLUDES.
+
+It is possible to override the LaTeX and BibTeX commands using the LATEX and
+BIBTEX global variables or environment variables, although bear in mind that the
+script expects certain arguments to be accepted and the log output to be of a
+certain form.
+
+* `rake`: produce $MAIN_JOB.pdf in the current directory.
+* `rake draft` will do the same.
+* `rake final` will turn warnings into errors and produce $DIST_NAME.pdf in the
+  current directory.
+* `rake view` will create the draft and attempt to open it in a suitable
+  viewing application.
+* `rake tar` will create a gzipped tar file of files, without any of the
+  directory structure or the build scripts.  This is useful for uploading to
+  the arXiv, for example.
+* `rake clean` will delete the build directory and any created archive.
+
