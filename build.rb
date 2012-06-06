@@ -22,7 +22,7 @@ if !$BUILD_DIR
 	$BUILD_DIR = 'build'
 end
 if !$LATEX
-	$LATEX = 'pdflatex -interaction=nonstopmode -halt-on-error'
+	$LATEX = 'pdflatex'
 end
 if !$BIBTEX
 	$BIBTEX = 'bibtex'
@@ -56,9 +56,9 @@ end
 # latex draft mode does not create the pdf (or look at images)
 def run_latex_draft (dir, name, file)
 	if ENV['verbose']
-		sh "(cd #{dir}; #{$LATEX} -draftmode -jobname #{name} #{file})"
+		sh "(cd #{dir}; #{$LATEX} -interaction=nonstopmode -halt-on-error -draftmode -jobname #{name} #{file})"
 	else
-		output = `(cd #{dir}; #{$LATEX} -draftmode -jobname #{name} #{file})`
+		output = `(cd #{dir}; #{$LATEX} -interaction=nonstopmode -halt-on-error -draftmode -jobname #{name} #{file})`
 		if $? != 0
 			puts output
 			fail "RAKE: LaTeX error in job #{name}."
@@ -68,9 +68,9 @@ end
 
 def run_latex (dir, name, file, depth=0)
 	if ENV['verbose']
-		sh "(cd #{dir}; #{$LATEX} -jobname #{name} #{file})"
+		sh "(cd #{dir}; #{$LATEX} -interaction=nonstopmode -halt-on-error -jobname #{name} #{file})"
 	else
-		output = `(cd #{dir}; #{$LATEX} -jobname #{name} #{file})`
+		output = `(cd #{dir}; #{$LATEX} -interaction=nonstopmode -halt-on-error -jobname #{name} #{file})`
 		if $? != 0
 			puts output
 			fail "RAKE: LaTeX error in job #{name}."
