@@ -44,10 +44,14 @@ def msg (m)
   STDOUT.flush
 end
 
+def warn (m)
+  puts ">>> WARNING: " + m
+  STDOUT.flush
+end
+
 def warn_need_for_final (m)
 	if $DRAFT
-		puts '>>> WARNING: ' + m
-		STDOUT.flush
+		warn (m)
 	else
 		fail '!!! ERROR: ' + m
 	end
@@ -110,10 +114,18 @@ def find_bibfiles
 	f.each_line do |ln|
 		bibs = ln.scan(/\\bibliography\{([^}]*)\}/)
 		for b in bibs
-			file "#{$BUILD_DIR}/#{b}.bib" => [$BUILD_DIR,"#{b}.bib"] do |t|
-				cp t.prerequisites[1], t.name
+			if File.exists?("#{b}.bib")
+				file "#{$BUILD_DIR}/#{b}.bib" => [$BUILD_DIR,"#{b}.bib"] do |t|
+					cp t.prerequisites[1], t.name
+				end
+				allbibs << "#{$BUILD_DIR}/#{b}.bib"
+			elsif File.exists?("#{b}.bbl")
+				file "#{$BUILD_DIR}/#{b}.bbl" => [$BUILD_DIR,"#{b}.bbl"] do |t|
+					cp t.prerequisites[1], t.name
+				end
+			else
+				warn "Could not find bibliography file #{b}.bib or #{b}.bbl, referenced from #{$MAIN_FILE}"
 			end
-			allbibs << "#{$BUILD_DIR}/#{b}.bib"
 		end
 	end
 	f.close
