@@ -193,7 +193,7 @@ task :check => "#{$BUILD_DIR}/#{$MAIN_JOB}.pdf" do
 	bad_cites = []
 	bad_refs = []
 	f.each_line do |ln|
-		if ln["WARNING!!! there is still a TODO left"]
+		if ln["unresolved-TODO"]
 			has_todos = true
 		end
 		bc = ln[/LaTeX Warning: Citation `([^']*)' on page/,1]
