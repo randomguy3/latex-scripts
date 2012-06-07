@@ -58,35 +58,70 @@ def warn_need_for_final (m)
   end
 end
 
+
+####################################################################
+# Stolen from
+# http://svn.ruby-lang.org/repos/ruby/trunk/lib/shellwords.rb
+# for compatibility with Ruby 1.8
+def shellescape(str)
+  str = str.to_s
+
+  # An empty argument will be skipped, so return empty quotes.
+  return "''" if str.empty?
+
+  str = str.dup
+
+  # Treat multibyte characters as is.  It is caller's responsibility
+  # to encode the string in the right encoding for the shell
+  # environment.
+  str.gsub!(/([^A-Za-z0-9_\-.,:\/@\n])/, "\\\\\\1")
+
+  # A LF cannot be escaped with a backslash because a backslash + LF
+  # combo is regarded as line continuation and simply ignored.
+  str.gsub!(/\n/, "'\n'")
+
+  return str
+end
+
+def shelljoin(array)
+  array.map { |arg| shellescape(arg) }.join(' ')
+end
+####################################################################
+
+
+$LATEX_CMD = [$LATEX, '-interaction=nonstopmode', '-halt-on-error']
+$LATEX_CMD += ['-fmt', 'latex', '-output-format', $LATEX_OUT_FMT]
+$BIBTEX_CMD = [$BIBTEX, '-terse']
+
 # latex draft mode does not create the pdf (or look at images)
 def run_latex_draft (dir, name, file)
-  if ENV['verbose']
-    sh "(cd #{dir}; #{$LATEX} -interaction=nonstopmode -halt-on-error -draftmode -jobname #{name} #{file})"
-  else
-    output = `(cd #{dir}; #{$LATEX} -interaction=nonstopmode -halt-on-error -draftmode -jobname #{name} #{file})`
-    if $? != 0
-      puts output
-      fail "RAKE: LaTeX error in job #{name}."
-    end
+  command = $LATEX_CMD + ['-draftmode', '-jobname', name, file]
+  output = ""
+  Dir.chdir(dir) do
+    output = `#{shelljoin command}`
+  end
+  if $? != 0
+    puts output
+    fail "RAKE: LaTeX error in job #{name}."
   end
 end
 
 def run_latex (dir, name, file, depth=0)
-  if ENV['verbose']
-    sh "(cd #{dir}; #{$LATEX} -interaction=nonstopmode -halt-on-error -jobname #{name} #{file})"
+  command = $LATEX_CMD + ['-jobname', name, file]
+  output = ""
+  Dir.chdir(dir) do
+    output = `#{shelljoin command}`
+  end
+  if $? != 0
+    puts output
+    fail "RAKE: LaTeX error in job #{name}."
   else
-    output = `(cd #{dir}; #{$LATEX} -interaction=nonstopmode -halt-on-error -jobname #{name} #{file})`
-    if $? != 0
-      puts output
-      fail "RAKE: LaTeX error in job #{name}."
-    else
-      if output["Rerun to get cross-references right."]
-        if depth > 4
-          fail "Failed to resolve all cross-references after 4 attempts"
-        else
-          msg "rebuilding #{file} to get cross-references right..."
-          run_latex dir, name, file, (depth+1)
-        end
+    if output["Rerun to get cross-references right."]
+      if depth > 4
+        fail "Failed to resolve all cross-references after 4 attempts"
+      else
+        msg "rebuilding #{file} to get cross-references right"
+        run_latex dir, name, file, (depth+1)
       end
     end
   end
@@ -143,14 +178,12 @@ def find_bibfiles
       end
       if force or !File.exists?old_aux or !identical?(aux,old_aux)
         msg 'running bibtex'
-        if ENV['verbose']
-          sh "(cd #{$BUILD_DIR}; #{$BIBTEX} #{$MAIN_JOB})"
-        else
-          output = `(cd #{$BUILD_DIR}; #{$BIBTEX} #{$MAIN_JOB})`
-          unless $? == 0
-            puts output
-            fail "RAKE: BibTeX error in job #{$MAIN_JOB}."
-          end
+        command = $BIBTEX_CMD + [$MAIN_JOB]
+        Dir.chdir($BUILD_DIR) do
+          system(*command)
+        end
+        unless $? == 0
+          fail "RAKE: BibTeX error in job #{$MAIN_JOB}."
         end
         cp aux, old_aux
       end
