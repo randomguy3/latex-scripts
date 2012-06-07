@@ -120,7 +120,7 @@ def run_latex (dir, name, file, depth=0)
       if depth > 4
         fail "Failed to resolve all cross-references after 4 attempts"
       else
-        msg "rebuilding #{file} to get cross-references right"
+        msg "Rebuilding #{file} to get cross-references right"
         run_latex dir, name, file, (depth+1)
       end
     end
@@ -142,6 +142,19 @@ if $DRAFT
     f.write("\n\\def\\realjobname{#{$MAIN_JOB}}\n")
     f.close
   end
+end
+
+def has_cites (auxfile)
+  f = open(auxfile)
+  found_cites = false
+  f.each_line do |ln|
+    if ln.start_with?"\\citation"
+      found_cites = true
+      break
+    end
+  end
+  f.close
+  found_cites
 end
 
 def find_bibfiles
@@ -170,23 +183,30 @@ def find_bibfiles
     file "#{$BUILD_DIR}/#{$MAIN_JOB}.bbl" => allbibs+["#{$BUILD_DIR}/#{$MAIN_JOB}.aux"] do |t|
       aux = "#{$BUILD_DIR}/#{$MAIN_JOB}.aux"
       old_aux = "#{$BUILD_DIR}/#{$MAIN_JOB}.last_bib_run.aux"
-      force = true
-      if File.exists?(t.name)
-        force = t.prerequisites.detect do |p|
-          p.end_with?(".bib") and File.stat(p).mtime >= File.stat(t.name).mtime
+      if has_cites(aux)
+        force = true
+        if File.exists?(t.name)
+          force = t.prerequisites.detect do |p|
+            p.end_with?(".bib") and File.stat(p).mtime >= File.stat(t.name).mtime
+          end
+        end
+        if force or !File.exists?old_aux or !identical?(aux,old_aux)
+          msg 'Running BibTeX'
+          command = $BIBTEX_CMD + [$MAIN_JOB]
+          Dir.chdir($BUILD_DIR) do
+            system(*command)
+          end
+          unless $? == 0
+            fail "RAKE: BibTeX error in job #{$MAIN_JOB}."
+          end
+        end
+      elsif !File.exists?old_aux or !identical?(aux,old_aux)
+        msg 'No citations; skipping BibTeX'
+        if File.exists?(t.name)
+          rm t.name
         end
       end
-      if force or !File.exists?old_aux or !identical?(aux,old_aux)
-        msg 'running bibtex'
-        command = $BIBTEX_CMD + [$MAIN_JOB]
-        Dir.chdir($BUILD_DIR) do
-          system(*command)
-        end
-        unless $? == 0
-          fail "RAKE: BibTeX error in job #{$MAIN_JOB}."
-        end
-        cp aux, old_aux
-      end
+      cp aux, old_aux
     end
     file $BUILD_OUTPUT => "#{$BUILD_DIR}/#{$MAIN_JOB}.bbl"
   end
@@ -253,7 +273,7 @@ task :check => $BUILD_OUTPUT do
 end
 
 file $BUILD_OUTPUT => $BUILD_FILES do
-  msg "building #{$MAIN_FILE}"
+  msg "Building #{$MAIN_FILE}"
   run_latex $BUILD_DIR, $MAIN_JOB, $MAIN_FILE
 end
 
@@ -261,7 +281,7 @@ directory $BUILD_DIR
 directory $DIST_NAME
 
 file "#{$BUILD_DIR}/#{$MAIN_JOB}.aux" => ($BUILD_FILES+[$MAIN_FILE]) do
-  msg "building #{$MAIN_FILE} to find refs"
+  msg "Building #{$MAIN_FILE} to find refs"
   run_latex_draft $BUILD_DIR, $MAIN_JOB, $MAIN_FILE
 end
 
