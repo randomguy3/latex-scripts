@@ -21,10 +21,10 @@ pdflatex from that directory.  This keeps your working directory clean, and
 allows you to structure your files (particuarly included files) while treating
 them as being in the current directory from within your LaTeX file.
 
-The script will find standard TeX files (*.tex, *.sty, *.cls, *.clo,*.bst) from
-the current directory or the "tex" subdirectory.  It will also find TikZ diagrams
-(*.tikz) and images (*.pdf, *.png, *.jpg) that are in the "figures"
-subdirectory.  Any other files can be added to $EXTRA_INCLUDES.
+The script will find the file $MAIN_JOB.tex, anything in the "tex" subdirectory
+and anything in the "figures" subdirectory.  BibTeX files in the main directory
+that are referenced by the main TeX file will also be found.  Any other files
+can be added to $EXTRA_INCLUDES.
 
 It is possible to override the LaTeX and BibTeX commands using the LATEX and
 BIBTEX global variables or environment variables, although bear in mind that the

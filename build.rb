@@ -34,10 +34,8 @@ end
 # internal
 $BUILD_FILES = []
 $MAIN_FILE = $MAIN_JOB + '.tex'
-$INCLUDE_FILES = Dir[
-  '*.{tex,sty,cls,clo,bst}',
-  'tex/*.{tex,sty,cls,clo,bst,def}',
-  'figures/*.{tikz,pdf,png,jpg}'] | $EXTRA_INCLUDES
+$INCLUDE_FILES = Dir[ 'tex/*', 'figures/*'] | $EXTRA_INCLUDES
+$INCLUDE_FILES << "#{$MAIN_JOB}.tex"
 
 def msg (m)
   puts "RAKE: " + m
