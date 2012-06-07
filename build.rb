@@ -36,7 +36,7 @@ $BUILD_FILES = []
 $MAIN_FILE = $MAIN_JOB + '.tex'
 $INCLUDE_FILES = Dir[
   '*.{tex,sty,cls,clo,bst}',
-  'tex/*.{tex,sty,cls,clo,bst}',
+  'tex/*.{tex,sty,cls,clo,bst,def}',
   'figures/*.{tikz,pdf,png,jpg}'] | $EXTRA_INCLUDES
 
 def msg (m)
