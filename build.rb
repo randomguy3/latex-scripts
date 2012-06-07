@@ -8,6 +8,12 @@ if !$EXTRA_INCLUDES
   $EXTRA_INCLUDES = []
 end
 
+# internal
+$BUILD_FILES = []
+$MAIN_FILE = $MAIN_JOB + '.tex'
+$INCLUDE_FILES = Dir[ 'tex/*', 'figures/*'] | $EXTRA_INCLUDES
+$INCLUDE_FILES << $MAIN_FILE
+
 if ENV['BUILD_DIR']
   $BUILD_DIR = ENV['BUILD_DIR']
 end
@@ -31,11 +37,8 @@ if !defined?($DRAFT)
   $DRAFT = true
 end
 
-# internal
-$BUILD_FILES = []
-$MAIN_FILE = $MAIN_JOB + '.tex'
-$INCLUDE_FILES = Dir[ 'tex/*', 'figures/*'] | $EXTRA_INCLUDES
-$INCLUDE_FILES << "#{$MAIN_JOB}.tex"
+$LATEX_OUT_FMT = 'pdf'
+$BUILD_OUTPUT = "#{$BUILD_DIR}/#{$MAIN_JOB}.#{$LATEX_OUT_FMT}"
 
 def msg (m)
   puts "RAKE: " + m
@@ -152,7 +155,7 @@ def find_bibfiles
         cp aux, old_aux
       end
     end
-    file "#{$BUILD_DIR}/#{$MAIN_JOB}.pdf" => "#{$BUILD_DIR}/#{$MAIN_JOB}.bbl"
+    file $BUILD_OUTPUT => "#{$BUILD_DIR}/#{$MAIN_JOB}.bbl"
   end
 end
 find_bibfiles
@@ -185,7 +188,7 @@ task :final => [
   cp "#{$BUILD_DIR}/#{$MAIN_JOB}.pdf", "#{$DIST_NAME}.pdf"
 end
 
-task :check => "#{$BUILD_DIR}/#{$MAIN_JOB}.pdf" do
+task :check => $BUILD_OUTPUT do
   f = open("#{$BUILD_DIR}/#{$MAIN_JOB}.log")
   has_todos = false
   bad_cites = []
@@ -216,8 +219,8 @@ task :check => "#{$BUILD_DIR}/#{$MAIN_JOB}.pdf" do
   end
 end
 
-file "#{$BUILD_DIR}/#{$MAIN_JOB}.pdf" => $BUILD_FILES do
-  msg "building #{$MAIN_FILE}..."
+file $BUILD_OUTPUT => $BUILD_FILES do
+  msg "building #{$MAIN_FILE}"
   run_latex $BUILD_DIR, $MAIN_JOB, $MAIN_FILE
 end
 
@@ -225,7 +228,7 @@ directory $BUILD_DIR
 directory $DIST_NAME
 
 file "#{$BUILD_DIR}/#{$MAIN_JOB}.aux" => ($BUILD_FILES+[$MAIN_FILE]) do
-  msg "building #{$MAIN_FILE} to find refs..."
+  msg "building #{$MAIN_FILE} to find refs"
   run_latex_draft $BUILD_DIR, $MAIN_JOB, $MAIN_FILE
 end
 
@@ -242,13 +245,13 @@ task :tar => [$DIST_NAME] do
   rm_rf $DIST_NAME
 end
 
-task :view => [:draft] do
+task :view => ["#{$BUILD_DIR}/#{$MAIN_JOB}.pdf"] do
   msg "Opening application to view PDF"
   apps = ['xdg-open', # linux
           'open',     # mac
           'start']    # windows
   success = apps.detect do
-    |app| system(app, "./#{$MAIN_JOB}.pdf")
+    |app| system(app, "#{$BUILD_DIR}/#{$MAIN_JOB}.pdf")
   end
   if !success
     fail "Could not figure out how to open the PDF file"
