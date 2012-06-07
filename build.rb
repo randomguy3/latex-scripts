@@ -23,6 +23,12 @@ end
 if ENV['BIBTEX']
   $BIBTEX = ENV['BIBTEX']
 end
+if ENV['DVIPS']
+  $BIBTEX = ENV['DVIPS']
+end
+if ENV['PS2PDF']
+  $BIBTEX = ENV['PS2PDF']
+end
 
 if !$BUILD_DIR
   $BUILD_DIR = 'build'
@@ -36,9 +42,78 @@ end
 if !defined?($DRAFT)
   $DRAFT = true
 end
+if !$DVIPS
+  $DVIPS = 'dvips'
+end
+if !$DVIPS_OPTS
+  $DVIPS_OPTS = []
+end
+if !$PS2PDF
+  $PS2PDF = 'ps2pdf'
+end
+if !$PS2PDF_OPTS
+  $PS2PDF_OPTS = []
+end
 
-$LATEX_OUT_FMT = 'pdf'
+def stripcomments (line)
+  percentidx = 0
+  esc = false
+  line.each_char do |c|
+    if esc
+      esc = false
+    elsif c == '\\'
+      esc = true
+    elsif c == '%'
+      break
+    end
+    percentidx += 1
+  end
+  line[0,percentidx]
+end
+
+if !$LATEX_OUT_FMT
+  $LATEX_OUT_FMT = 'pdf'
+  dvi_classes = ['powerdot',
+                 'prosper']
+  f = open($MAIN_FILE)
+  f.each_line do |ln|
+    match_data = stripcomments(ln).match(/\\documentclass(?:\[[^\]]*\])?\{([^}]*)\}/)
+    if match_data
+      doc_class = match_data[1]
+      if dvi_classes.include?doc_class
+        $LATEX_OUT_FMT = 'dvi'
+      end
+      break
+    end
+  end
+  f.close
+end
 $BUILD_OUTPUT = "#{$BUILD_DIR}/#{$MAIN_JOB}.#{$LATEX_OUT_FMT}"
+
+if $LATEX_OUT_FMT == 'dvi'
+  file "#{$BUILD_DIR}/#{$MAIN_JOB}.ps" => [$BUILD_OUTPUT] do |t|
+    command = [$DVIPS] + $DVIPS_OPTS + ['-o', t.name, t.prerequisites[0]]
+    output = ""
+    msg "Converting DVI file to Postscript"
+    output = `#{shelljoin command} 2>&1`
+    if $? != 0
+      puts output
+      fail "RAKE: Could not create PS file from DVI #{name}."
+    end
+  end
+  file "#{$BUILD_DIR}/#{$MAIN_JOB}.pdf" => ["#{$BUILD_DIR}/#{$MAIN_JOB}.ps"] do |t|
+    command = [$PS2PDF] + $PS2PDF_OPTS + [t.prerequisites[0], t.name]
+    output = ""
+    msg "Converting Postscript file to PDF"
+    output = `#{shelljoin command}`
+    if $? != 0
+      puts output
+      fail "RAKE: Could not create PDF file from PS #{name}."
+    end
+  end
+elsif $LATEX_OUT_FMT != 'pdf'
+  fail "Unknown LaTeX output format \"#{$LATEX_OUTPUT_FORMAT}\""
+end
 
 def msg (m)
   puts "RAKE: " + m
@@ -91,7 +166,13 @@ end
 
 $LATEX_CMD = [$LATEX, '-interaction=nonstopmode', '-halt-on-error']
 $LATEX_CMD += ['-fmt', 'latex', '-output-format', $LATEX_OUT_FMT]
+if $LATEX_OPTS
+  $LATEX_CMD += $LATEX_OPTS
+end
 $BIBTEX_CMD = [$BIBTEX, '-terse']
+if $BIBTEX_OPTS
+  $BIBTEX_CMD += $BIBTEX_OPTS
+end
 
 # latex draft mode does not create the pdf (or look at images)
 def run_latex_draft (dir, name, file)
@@ -161,8 +242,9 @@ def find_bibfiles
   f = open($MAIN_FILE)
   allbibs = []
   f.each_line do |ln|
-    bibs = ln.scan(/\\bibliography\{([^}]*)\}/)
+    bibs = stripcomments(ln).scan(/\\bibliography\{([^}]*)\}/)
     for b in bibs
+      b = b[0].strip
       if File.exists?("#{b}.bib")
         file "#{$BUILD_DIR}/#{b}.bib" => [$BUILD_DIR,"#{b}.bib"] do |t|
           cp t.prerequisites[1], t.name

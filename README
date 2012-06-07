@@ -15,6 +15,12 @@ happens in the Rakefile.
 * $MAIN_JOB specifies the base name of the tex file
 * $DIST_NAME is the name of the final version of the pdf, and of the archive
 * $EXTRA_INCLUDES allows extra files to be added
+* $LATEX_OUTPUT_FMT defaults to pdf, unless the document class is one of a
+  known few that cannot output directly to this format, in which case dvi
+  output is used (and the pdf version is generated with dvips and ps2pdf).
+  This variable must be one of "pdf" or "dvi".
+* $LATEX_OPTS, $BIBTEX_OPTS, $DVIPS_OPTS and $PS2PDF_OPTS allow you to add
+  extra options to these commands
 
 The script works by copying all files into a build directory, and running
 pdflatex from that directory.  This keeps your working directory clean, and
