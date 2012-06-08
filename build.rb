@@ -8,6 +8,8 @@ if !$EXTRA_INCLUDES
   $EXTRA_INCLUDES = []
 end
 
+RakeFileUtils.verbose(false)
+
 # internal
 $BUILD_FILES = []
 $MAIN_FILE = $MAIN_JOB + '.tex'
