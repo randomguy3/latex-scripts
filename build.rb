@@ -56,6 +56,7 @@ end
 if !$PS2PDF_OPTS
   $PS2PDF_OPTS = []
 end
+$BIBFILES = []
 
 def stripcomments (line)
   percentidx = 0
@@ -242,7 +243,7 @@ end
 
 def find_bibfiles
   f = open($MAIN_FILE)
-  allbibs = []
+  $BIBFILES = []
   f.each_line do |ln|
     bibs = stripcomments(ln).scan(/\\bibliography\{([^}]*)\}/)
     for b in bibs
@@ -251,7 +252,7 @@ def find_bibfiles
         file "#{$BUILD_DIR}/#{b}.bib" => [$BUILD_DIR,"#{b}.bib"] do |t|
           cp t.prerequisites[1], t.name
         end
-        allbibs << "#{$BUILD_DIR}/#{b}.bib"
+        $BIBFILES << "#{$BUILD_DIR}/#{b}.bib"
       elsif File.exists?("#{b}.bbl")
         file "#{$BUILD_DIR}/#{b}.bbl" => [$BUILD_DIR,"#{b}.bbl"] do |t|
           cp t.prerequisites[1], t.name
@@ -263,8 +264,8 @@ def find_bibfiles
   end
   f.close
 
-  if allbibs.length > 0
-    file "#{$BUILD_DIR}/#{$MAIN_JOB}.bbl" => allbibs+["#{$BUILD_DIR}/#{$MAIN_JOB}.aux"] do |t|
+  if $BIBFILES.length > 0
+    file "#{$BUILD_DIR}/#{$MAIN_JOB}.bbl" => $BIBFILES+["#{$BUILD_DIR}/#{$MAIN_JOB}.aux"] do |t|
       aux = "#{$BUILD_DIR}/#{$MAIN_JOB}.aux"
       old_aux = "#{$BUILD_DIR}/#{$MAIN_JOB}.last_bib_run.aux"
       if has_cites(aux)
@@ -363,6 +364,7 @@ end
 
 directory $BUILD_DIR
 directory $DIST_NAME
+directory $DIST_NAME
 
 file "#{$BUILD_DIR}/#{$MAIN_JOB}.aux" => ($BUILD_FILES+[$MAIN_FILE]) do
   msg "Building #{$MAIN_FILE} to find refs"
@@ -371,14 +373,25 @@ end
 
 task :clean do
   msg "Deleting build directory and archive"
-  rm_rf [$BUILD_DIR, "#{$DIST_NAME}.tar.gz"]
+  rm_rf [$BUILD_DIR, "#{$DIST_NAME}.tar.gz", "#{$DIST_NAME}-arxiv.tar.gz"]
 end
 
-task :tar => [$DIST_NAME] do
+task :tar => [$DIST_NAME,"#{$BUILD_DIR}/#{$MAIN_JOB}.bbl"] do
   msg "Creating (#{$DIST_NAME}.tar.gz)"
   rm_f "#{$DIST_NAME}.tar.gz"
-  cp $INCLUDE_FILES, $DIST_NAME
+  files = $INCLUDE_FILES+$BIBFILES+["#{$BUILD_DIR}/#{$MAIN_JOB}.bbl"]
+  cp files, $DIST_NAME
   system('tar', 'czf', "#{$DIST_NAME}.tar.gz", $DIST_NAME)
+  rm_rf $DIST_NAME
+end
+
+# We don't include the bibfiles for arXiv
+task :arxiv => [$DIST_NAME,"#{$BUILD_DIR}/#{$MAIN_JOB}.bbl"] do
+  msg "Creating (#{$DIST_NAME}-arxiv.tar.gz)"
+  rm_f "#{$DIST_NAME}-arxiv.tar.gz"
+  files = $INCLUDE_FILES+["#{$BUILD_DIR}/#{$MAIN_JOB}.bbl"]
+  cp files, $DIST_NAME
+  system('tar', 'czf', "#{$DIST_NAME}-arxiv.tar.gz", $DIST_NAME)
   rm_rf $DIST_NAME
 end
 
