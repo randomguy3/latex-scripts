@@ -1,11 +1,14 @@
-if !$MAIN_JOB
+if !(defined? $MAIN_JOB)
   fail "No MAIN_JOB given"
 end
-if !$DIST_NAME
+if !(defined? $DIST_NAME)
   $DIST_NAME = $MAIN_JOB
 end
-if !$EXTRA_INCLUDES
+if !(defined? $EXTRA_INCLUDES)
   $EXTRA_INCLUDES = []
+end
+if !(defined? $VERBOSE_MSGS)
+  $VERBOSE_MSGS = false
 end
 
 RakeFileUtils.verbose($VERBOSE_MSGS)
@@ -32,28 +35,28 @@ if ENV['PS2PDF']
   $BIBTEX = ENV['PS2PDF']
 end
 
-if !$BUILD_DIR
+if !(defined? $BUILD_DIR)
   $BUILD_DIR = 'build'
 end
-if !$LATEX
+if !(defined? $LATEX)
   $LATEX = 'pdflatex'
 end
-if !$BIBTEX
+if !(defined? $BIBTEX)
   $BIBTEX = 'bibtex'
 end
 if !defined?($DRAFT)
   $DRAFT = true
 end
-if !$DVIPS
+if !(defined? $DVIPS)
   $DVIPS = 'dvips'
 end
-if !$DVIPS_OPTS
+if !(defined? $DVIPS_OPTS)
   $DVIPS_OPTS = []
 end
-if !$PS2PDF
+if !(defined? $PS2PDF)
   $PS2PDF = 'ps2pdf'
 end
-if !$PS2PDF_OPTS
+if !(defined? $PS2PDF_OPTS)
   $PS2PDF_OPTS = []
 end
 $BIBFILES = []
@@ -74,7 +77,7 @@ def stripcomments (line)
   line[0,percentidx]
 end
 
-if !$LATEX_OUT_FMT
+if !(defined? $LATEX_OUT_FMT)
   $LATEX_OUT_FMT = 'pdf'
   dvi_classes = ['powerdot',
                  'prosper']
@@ -130,7 +133,7 @@ end
 
 def warn_need_for_final (m)
   if $DRAFT
-    warn (m)
+    warn m
   else
     fail '!!! ERROR: ' + m
   end
@@ -169,11 +172,11 @@ end
 
 $LATEX_CMD = [$LATEX, '-interaction=nonstopmode', '-halt-on-error']
 $LATEX_CMD += ['-fmt', 'latex', '-output-format', $LATEX_OUT_FMT]
-if $LATEX_OPTS
+if defined? $LATEX_OPTS
   $LATEX_CMD += $LATEX_OPTS
 end
 $BIBTEX_CMD = [$BIBTEX, '-terse']
-if $BIBTEX_OPTS
+if defined? $BIBTEX_OPTS
   $BIBTEX_CMD += $BIBTEX_OPTS
 end
 
