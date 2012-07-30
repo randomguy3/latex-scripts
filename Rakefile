@@ -5,4 +5,4 @@ $DIST_NAME = 'example_final'
 # Any non-standard files to copy into the build dir
 $EXTRA_INCLUDES = []
 
-require './build.rb'
+import 'build.rake'
