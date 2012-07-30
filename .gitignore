@@ -1,3 +1,5 @@
 build/
 *.pdf
 *.tar.gz
+.*.swp
+*~
