@@ -224,6 +224,7 @@ for f in $INCLUDE_FILES
 end
 
 if $DRAFT
+  # FIXME: is this actually necessary?
   file "#{$BUILD_DIR}/#{$MAIN_FILE}" do
     f = open("#{$BUILD_DIR}/#{$MAIN_FILE}", 'a')
     f.write("\n\\def\\realjobname{#{$MAIN_JOB}}\n")
@@ -301,7 +302,6 @@ def find_bibfiles
 end
 find_bibfiles
 
-
 task :default => [:draft]
 
 task :setdraft do
@@ -312,6 +312,7 @@ task :setfinal do
   $DRAFT = false
 end
 
+desc "Create a draft PDF file (#{$MAIN_JOB}.pdf) [default]"
 task :draft => [
   :setdraft,
   "#{$BUILD_DIR}/#{$MAIN_JOB}.pdf",
@@ -320,6 +321,7 @@ task :draft => [
   cp "#{$BUILD_DIR}/#{$MAIN_JOB}.pdf", "#{$MAIN_JOB}.pdf"
 end
 
+desc "Create the final PDF file (#{$DIST_NAME}.pdf)"
 task :final => [
   :clean,
   :setfinal,
@@ -329,6 +331,7 @@ task :final => [
   cp "#{$BUILD_DIR}/#{$MAIN_JOB}.pdf", "#{$DIST_NAME}.pdf"
 end
 
+desc "Check for problems with the LaTeX document (eg: unresolved references)"
 task :check => $BUILD_OUTPUT do
   f = open("#{$BUILD_DIR}/#{$MAIN_JOB}.log")
   has_todos = false
@@ -374,11 +377,13 @@ file "#{$BUILD_DIR}/#{$MAIN_JOB}.aux" => ($BUILD_FILES+[$MAIN_FILE]) do
   run_latex_draft $BUILD_DIR, $MAIN_JOB, $MAIN_FILE
 end
 
+desc "Remove all build files and archives"
 task :clean do
   msg "Deleting build directory and archive"
   rm_rf [$BUILD_DIR, "#{$DIST_NAME}.tar.gz", "#{$DIST_NAME}-arxiv.tar.gz"]
 end
 
+desc "Create a tar archive containing all the source files"
 task :tar => [$DIST_NAME,"#{$BUILD_DIR}/#{$MAIN_JOB}.bbl"] do
   msg "Creating (#{$DIST_NAME}.tar.gz)"
   rm_f "#{$DIST_NAME}.tar.gz"
@@ -388,6 +393,7 @@ task :tar => [$DIST_NAME,"#{$BUILD_DIR}/#{$MAIN_JOB}.bbl"] do
   rm_rf $DIST_NAME
 end
 
+desc "Create a tar archive suitable for uploading to the arXiv"
 # We don't include the bibfiles for arXiv
 task :arxiv => [$DIST_NAME,"#{$BUILD_DIR}/#{$MAIN_JOB}.bbl"] do
   msg "Creating (#{$DIST_NAME}-arxiv.tar.gz)"
@@ -398,6 +404,7 @@ task :arxiv => [$DIST_NAME,"#{$BUILD_DIR}/#{$MAIN_JOB}.bbl"] do
   rm_rf $DIST_NAME
 end
 
+desc "Create the PDF file and open it in a PDF viewer"
 task :view => ["#{$BUILD_DIR}/#{$MAIN_JOB}.pdf"] do
   msg "Opening application to view PDF"
   apps = ['xdg-open', # linux
