@@ -223,15 +223,6 @@ for f in $INCLUDE_FILES
   end
 end
 
-if $DRAFT
-  # FIXME: is this actually necessary?
-  file "#{$BUILD_DIR}/#{$MAIN_FILE}" do
-    f = open("#{$BUILD_DIR}/#{$MAIN_FILE}", 'a')
-    f.write("\n\\def\\realjobname{#{$MAIN_JOB}}\n")
-    f.close
-  end
-end
-
 def has_cites (auxfile)
   f = open(auxfile)
   found_cites = false
