@@ -44,9 +44,6 @@ end
 if !(defined? $BIBTEX)
   $BIBTEX = 'bibtex'
 end
-if !defined?($DRAFT)
-  $DRAFT = true
-end
 if !(defined? $DVIPS)
   $DVIPS = 'dvips'
 end
@@ -129,14 +126,6 @@ end
 def warn (m)
   puts ">>> WARNING: " + m
   STDOUT.flush
-end
-
-def warn_need_for_final (m)
-  if $DRAFT
-    warn m
-  else
-    fail '!!! ERROR: ' + m
-  end
 end
 
 
@@ -293,38 +282,8 @@ def find_bibfiles
 end
 find_bibfiles
 
-task :default => [:draft]
-
-task :setdraft do
-  $DRAFT = true
-end
-
-task :setfinal do
-  $DRAFT = false
-end
-
-desc "Create a draft PDF file (#{$MAIN_JOB}.pdf) [default]"
-task :draft => [
-  :setdraft,
-  "#{$BUILD_DIR}/#{$MAIN_JOB}.pdf",
-  :check] do
- 
-  cp "#{$BUILD_DIR}/#{$MAIN_JOB}.pdf", "#{$MAIN_JOB}.pdf"
-end
-
-desc "Create the final PDF file (#{$DIST_NAME}.pdf)"
-task :final => [
-  :clean,
-  :setfinal,
-  "#{$BUILD_DIR}/#{$MAIN_JOB}.pdf",
-  :check] do
- 
-  cp "#{$BUILD_DIR}/#{$MAIN_JOB}.pdf", "#{$DIST_NAME}.pdf"
-end
-
-desc "Check for problems with the LaTeX document (eg: unresolved references)"
-task :check => $BUILD_OUTPUT do
-  f = open("#{$BUILD_DIR}/#{$MAIN_JOB}.log")
+def check_log(logfile)
+  f = open(logfile)
   has_todos = false
   bad_cites = []
   bad_refs = []
@@ -343,15 +302,20 @@ task :check => $BUILD_OUTPUT do
   end
   f.close
 
+  has_problems = false
   if has_todos
-    warn_need_for_final 'you have TODOs left'
+    warn 'you have TODOs left'
+    has_problems = true
   end
   if bad_cites.length > 0
-    warn_need_for_final "the following citations were unresolved: #{bad_cites.join(', ')}"
+    warn "the following citations were unresolved: #{bad_cites.join(', ')}"
+    has_problems = true
   end
   if bad_refs.length > 0
-    warn_need_for_final "the following references were unresolved: #{bad_refs.join(', ')}"
+    warn "the following references were unresolved: #{bad_refs.join(', ')}"
+    has_problems = true
   end
+  return !has_problems
 end
 
 file $BUILD_OUTPUT => $BUILD_FILES do
@@ -368,10 +332,29 @@ file "#{$BUILD_DIR}/#{$MAIN_JOB}.aux" => ($BUILD_FILES+[$MAIN_FILE]) do
   run_latex_draft $BUILD_DIR, $MAIN_JOB, $MAIN_FILE
 end
 
-desc "Remove all build files and archives"
-task :clean do
-  msg "Deleting build directory and archive"
-  rm_rf [$BUILD_DIR, "#{$DIST_NAME}.tar.gz", "#{$DIST_NAME}-arxiv.tar.gz"]
+file "#{$MAIN_JOB}.pdf" => ["#{$BUILD_DIR}/#{$MAIN_JOB}.pdf"] do
+  cp "#{$BUILD_DIR}/#{$MAIN_JOB}.pdf", "#{$MAIN_JOB}.pdf"
+end
+file "#{$DIST_NAME}.pdf" => ["#{$BUILD_DIR}/#{$MAIN_JOB}.pdf"] do
+  cp "#{$BUILD_DIR}/#{$MAIN_JOB}.pdf", "#{$DIST_NAME}.pdf"
+end
+
+desc "Create a draft PDF file (#{$MAIN_JOB}.pdf) [default]"
+task :draft => [:check,"#{$MAIN_JOB}.pdf"]
+task :default => [:draft]
+
+desc "Create the final PDF file (#{$DIST_NAME}.pdf)"
+task :final => [:check_final,"#{$DIST_NAME}.pdf"]
+
+desc "Check for problems with the LaTeX document (eg: unresolved references)"
+task :check => $BUILD_OUTPUT do
+  check_log("#{$BUILD_DIR}/#{$MAIN_JOB}.log")
+end
+task :check_final => $BUILD_OUTPUT do
+  is_ok = check_log("#{$BUILD_DIR}/#{$MAIN_JOB}.log")
+  if !is_ok
+    fail "There are still problems with the LaTeX document (see above)"
+  end
 end
 
 desc "Create a tar archive containing all the source files"
@@ -407,5 +390,11 @@ task :view => ["#{$BUILD_DIR}/#{$MAIN_JOB}.pdf"] do
   if !success
     fail "Could not figure out how to open the PDF file"
   end
+end
+
+desc "Remove all build files and archives"
+task :clean do
+  msg "Deleting build directory and archive"
+  rm_rf [$BUILD_DIR, "#{$DIST_NAME}.tar.gz", "#{$DIST_NAME}-arxiv.tar.gz"]
 end
 
