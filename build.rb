@@ -8,7 +8,7 @@ if !$EXTRA_INCLUDES
   $EXTRA_INCLUDES = []
 end
 
-RakeFileUtils.verbose(false)
+RakeFileUtils.verbose($VERBOSE_MSGS)
 
 # internal
 $BUILD_FILES = []
