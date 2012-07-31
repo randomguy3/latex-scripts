@@ -180,6 +180,8 @@ def run_latex_draft (dir, name, file)
     puts output
     fail "RAKE: LaTeX error in job #{name}."
   end
+  # When in DVI mode, the DVI file will be created even with -draftmode
+  rm_f $BUILD_OUTPUT
 end
 
 def run_latex (dir, name, file, depth=0)
