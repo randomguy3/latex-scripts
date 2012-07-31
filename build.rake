@@ -32,7 +32,10 @@ if ENV['DVIPS']
   $BIBTEX = ENV['DVIPS']
 end
 if ENV['PS2PDF']
-  $BIBTEX = ENV['PS2PDF']
+  $PS2PDF = ENV['PS2PDF']
+end
+if ENV['EPSTOPDF']
+  $EPSTOPDF = ENV['EPSTOPDF']
 end
 
 if !(defined? $BUILD_DIR)
@@ -55,6 +58,12 @@ if !(defined? $PS2PDF)
 end
 if !(defined? $PS2PDF_OPTS)
   $PS2PDF_OPTS = []
+end
+if !(defined? $EPSTOPDF)
+  $EPSTOPDF = 'epstopdf'
+end
+if !(defined? $EPSTOPDF_OPTS)
+  $EPSTOPDF_OPTS = []
 end
 $BIBFILES = []
 
@@ -206,11 +215,27 @@ def run_latex (dir, name, file, depth=0)
 end
 
 for f in $INCLUDE_FILES
-  fbase = File.basename f
-  fbuild = "#{$BUILD_DIR}/#{fbase}"
-  $BUILD_FILES << fbuild
-  file fbuild => [$BUILD_DIR,f] do |t|
-    cp t.prerequisites[1], t.name
+  if File.extname(f) == '.eps' and $LATEX_OUT_FMT == 'pdf'
+    fbase = File.basename f, '.eps'
+    fbuild = "#{$BUILD_DIR}/#{fbase}.pdf"
+    $BUILD_FILES << fbuild
+    file fbuild => [$BUILD_DIR,f] do |t|
+      command = [$EPSTOPDF] + $EPSTOPDF_OPTS + ['--outfile='+t.name, t.prerequisites[1]]
+      output = ""
+      output = `#{shelljoin command}`
+      if $? != 0
+        puts "#{shelljoin command}"
+        puts output
+        fail "RAKE: Could not create PDF file from EPS #{name}."
+      end
+    end
+  else
+    fbase = File.basename f
+    fbuild = "#{$BUILD_DIR}/#{fbase}"
+    $BUILD_FILES << fbuild
+    file fbuild => [$BUILD_DIR,f] do |t|
+      cp t.prerequisites[1], t.name
+    end
   end
 end
 
