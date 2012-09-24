@@ -353,6 +353,7 @@ end
 directory $BUILD_DIR
 directory $DIST_NAME
 directory $DIST_NAME
+directory "#{$BUILD_DIR}/preview"
 
 file "#{$BUILD_DIR}/#{$MAIN_JOB}.aux" => ($BUILD_FILES+[$MAIN_FILE]) do
   msg "Building #{$MAIN_FILE} to find refs"
@@ -365,13 +366,23 @@ end
 file "#{$DIST_NAME}.pdf" => ["#{$BUILD_DIR}/#{$MAIN_JOB}.pdf"] do
   cp "#{$BUILD_DIR}/#{$MAIN_JOB}.pdf", "#{$DIST_NAME}.pdf"
 end
+# We maintain a separate preview file.
+# This means it is independent of the preview or final PDF, and
+# it can be replaced directly (unlike build/main_job.pdf, which
+# is deleted for a while then recreated) which plays better with
+# PDF readers.
+file "#{$BUILD_DIR}/preview/#{$DIST_NAME}.pdf" => ["#{$BUILD_DIR}/#{$MAIN_JOB}.pdf","#{$BUILD_DIR}/preview"] do
+  cp "#{$BUILD_DIR}/#{$MAIN_JOB}.pdf", "#{$BUILD_DIR}/preview/#{$DIST_NAME}.pdf"
+end
 
+# We also update the preview
 desc "Create a draft PDF file (#{$MAIN_JOB}.pdf) [default]"
-task :draft => [:check,"#{$MAIN_JOB}.pdf"]
+task :draft => [:check,"#{$MAIN_JOB}.pdf","#{$BUILD_DIR}/preview/#{$DIST_NAME}.pdf"]
 task :default => [:draft]
 
+# We also update the preview
 desc "Create the final PDF file (#{$DIST_NAME}.pdf)"
-task :final => [:check_final,"#{$DIST_NAME}.pdf"]
+task :final => [:check_final,"#{$DIST_NAME}.pdf","#{$BUILD_DIR}/preview/#{$DIST_NAME}.pdf"]
 
 desc "Check for problems with the LaTeX document (eg: unresolved references)"
 task :check => $BUILD_OUTPUT do
@@ -406,13 +417,13 @@ task :arxiv => [$DIST_NAME,"#{$BUILD_DIR}/#{$MAIN_JOB}.bbl"] do
 end
 
 desc "Create the PDF file and open it in a PDF viewer"
-task :view => ["#{$BUILD_DIR}/#{$MAIN_JOB}.pdf"] do
+task :view => ["#{$BUILD_DIR}/preview/#{$DIST_NAME}.pdf"] do
   msg "Opening application to view PDF"
   apps = ['xdg-open', # linux
           'open',     # mac
           'start']    # windows
   success = apps.detect do
-    |app| system(app, "#{$BUILD_DIR}/#{$MAIN_JOB}.pdf")
+    |app| system(app, "#{$BUILD_DIR}/preview/#{$DIST_NAME}.pdf")
   end
   if !success
     fail "Could not figure out how to open the PDF file"
