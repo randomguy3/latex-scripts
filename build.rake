@@ -18,6 +18,7 @@ $BUILD_FILES = []
 $MAIN_FILE = $MAIN_JOB + '.tex'
 $INCLUDE_FILES = Dir[ 'tex/*', 'figures/*'] | $EXTRA_INCLUDES
 $INCLUDE_FILES << $MAIN_FILE
+$BIBFILES = []
 
 if ENV['BUILD_DIR']
   $BUILD_DIR = ENV['BUILD_DIR']
@@ -65,7 +66,6 @@ end
 if !(defined? $EPSTOPDF_OPTS)
   $EPSTOPDF_OPTS = []
 end
-$BIBFILES = []
 
 def stripcomments (line)
   percentidx = 0
