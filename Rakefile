@@ -1,22 +1,43 @@
 ##################
 # Common Options #
 ##################
+#
+# Most projects will only need to touch the options in this section
+#
+# The only required option is $MAIN_JOB
+#
 
-# Name of the tex file (without extension)
-$MAIN_JOB = 'example'
+# The LaTeX job name
+# The output file will be this with '.pdf' appended
+$MAIN_JOB = 'example-doc'
 
-# What to name the archive/final version pdf
-$DIST_NAME = 'example_final'
+# The input file
+# Default value is $MAIN_JOB.tex
+$MAIN_FILE = 'example.tex'
+
+# Other, independent jobs (eg: individual chapters)
+# Format is
+#   'job name' => 'job input file'
+#$SIDE_JOBS = {
+#  'part1' => 'part1.tex'
+#}
+
+# What to name the archive
+# Defauls to $MAIN_JOB
+$DIST_NAME = 'example-archive'
 
 # Any non-standard files to copy into the build dir
+# Paths are relative to the Rakefile
 $EXTRA_INCLUDES = []
 
 
 ##################
 # External Tools #
 ##################
+#
 # All the tool locations can be overridden with environment
 # variables of the same name
+#
 
 # The LaTeX command (should be pdflatex)
 # $LATEX = '/path/to/pdflatex'

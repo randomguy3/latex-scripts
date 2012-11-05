@@ -12,8 +12,10 @@ The main part of the script is in build.rake.  This should just be dropped into
 the same directory as the LaTeX file.  Customisation for a particular LaTeX file
 happens in the Rakefile, which should import build.rake.
 
-* $MAIN_JOB specifies the base name of the tex file
-* $DIST_NAME is the name of the final version of the pdf, and of the archive
+* $MAIN_JOB specifies the base name of the output file
+* $MAIN_FILE specifies the input tex file (default is based on $MAIN_JOB)
+* $SIDE_JOBS lists extra jobs and their input files (eg: separate chapters)
+* $DIST_NAME is the name of the archive
 * $EXTRA_INCLUDES allows extra files to be added
 * $LATEX_OUTPUT_FMT defaults to pdf, unless the document class is one of a
   known few that cannot output directly to this format, in which case dvi

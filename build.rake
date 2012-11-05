@@ -1,5 +1,85 @@
+#####################
+# Utility functions #
+#####################
+#
+# These functions do not depend on any script variables
+#
+
+def msg (m)
+  puts "RAKE: " + m
+  STDOUT.flush
+end
+
+def warn (m)
+  puts ">>> WARNING: " + m
+  STDOUT.flush
+end
+
+def stripcomments (line)
+  percentidx = 0
+  esc = false
+  line.each_char do |c|
+    if esc
+      esc = false
+    elsif c == '\\'
+      esc = true
+    elsif c == '%'
+      break
+    end
+    percentidx += 1
+  end
+  line[0,percentidx]
+end
+
+####################################################################
+# Stolen from
+# http://svn.ruby-lang.org/repos/ruby/trunk/lib/shellwords.rb
+# for compatibility with Ruby 1.8
+def shellescape(str)
+  str = str.to_s
+
+  # An empty argument will be skipped, so return empty quotes.
+  return "''" if str.empty?
+
+  str = str.dup
+
+  # Treat multibyte characters as is.  It is caller's responsibility
+  # to encode the string in the right encoding for the shell
+  # environment.
+  str.gsub!(/([^A-Za-z0-9_\-.,:\/@\n])/, "\\\\\\1")
+
+  # A LF cannot be escaped with a backslash because a backslash + LF
+  # combo is regarded as line continuation and simply ignored.
+  str.gsub!(/\n/, "'\n'")
+
+  return str
+end
+
+def shelljoin(array)
+  array.map { |arg| shellescape(arg) }.join(' ')
+end
+####################################################################
+
+
+
+################################
+# User configuration variables #
+################################
+
 if !(defined? $MAIN_JOB)
   fail "No MAIN_JOB given"
+end
+if !(defined? $MAIN_FILE)
+  $MAIN_FILE = "#{$MAIN_JOB}.tex"
+end
+if !(defined? $SIDE_JOBS)
+  $SIDE_JOBS = {}
+elsif !($SIDE_JOBS.is_a? Hash)
+  side_jobs = {}
+  for j in $SIDE_JOBS
+    side_jobs[j] = j + ".tex"
+  end
+  $SIDE_JOBS = side_jobs
 end
 if !(defined? $DIST_NAME)
   $DIST_NAME = $MAIN_JOB
@@ -12,13 +92,6 @@ if !(defined? $VERBOSE_MSGS)
 end
 
 RakeFileUtils.verbose($VERBOSE_MSGS)
-
-# internal
-$BUILD_FILES = []
-$MAIN_FILE = $MAIN_JOB + '.tex'
-$INCLUDE_FILES = Dir[ 'tex/*', 'figures/*'] | $EXTRA_INCLUDES
-$INCLUDE_FILES << $MAIN_FILE
-$BIBFILES = []
 
 if ENV['BUILD_DIR']
   $BUILD_DIR = ENV['BUILD_DIR']
@@ -67,27 +140,24 @@ if !(defined? $EPSTOPDF_OPTS)
   $EPSTOPDF_OPTS = []
 end
 
-def stripcomments (line)
-  percentidx = 0
-  esc = false
-  line.each_char do |c|
-    if esc
-      esc = false
-    elsif c == '\\'
-      esc = true
-    elsif c == '%'
-      break
-    end
-    percentidx += 1
-  end
-  line[0,percentidx]
-end
+
+
+######################
+# Internal variables #
+######################
+
+$BUILD_FILES = []
+$INCLUDE_FILES = Dir[ 'tex/*', 'figures/*'] | $EXTRA_INCLUDES
+$ALL_JOBS = $SIDE_JOBS.merge({$MAIN_JOB => $MAIN_FILE})
+$ALL_JOBS.each_value {|v| $INCLUDE_FILES << v}
+$BIBFILES = []
 
 if !(defined? $LATEX_OUT_FMT)
   $LATEX_OUT_FMT = 'pdf'
   dvi_classes = ['powerdot',
                  'prosper']
   f = open($MAIN_FILE)
+  i = 0
   f.each_line do |ln|
     match_data = stripcomments(ln).match(/\\documentclass(?:\[[^\]]*\])?\{([^}]*)\}/)
     if match_data
@@ -97,76 +167,14 @@ if !(defined? $LATEX_OUT_FMT)
       end
       break
     end
+    # only bother checking the first 50 lines
+    if i >= 50
+      break
+    end
+    i += 1
   end
   f.close
 end
-$BUILD_OUTPUT = "#{$BUILD_DIR}/#{$MAIN_JOB}.#{$LATEX_OUT_FMT}"
-
-if $LATEX_OUT_FMT == 'dvi'
-  file "#{$BUILD_DIR}/#{$MAIN_JOB}.ps" => [$BUILD_OUTPUT] do |t|
-    command = [$DVIPS] + $DVIPS_OPTS + ['-o', t.name, t.prerequisites[0]]
-    output = ""
-    msg "Converting DVI file to Postscript"
-    output = `#{shelljoin command} 2>&1`
-    if $? != 0
-      puts output
-      fail "RAKE: Could not create PS file from DVI #{name}."
-    end
-  end
-  file "#{$BUILD_DIR}/#{$MAIN_JOB}.pdf" => ["#{$BUILD_DIR}/#{$MAIN_JOB}.ps"] do |t|
-    command = [$PS2PDF] + $PS2PDF_OPTS + [t.prerequisites[0], t.name]
-    output = ""
-    msg "Converting Postscript file to PDF"
-    output = `#{shelljoin command}`
-    if $? != 0
-      puts output
-      fail "RAKE: Could not create PDF file from PS #{name}."
-    end
-  end
-elsif $LATEX_OUT_FMT != 'pdf'
-  fail "Unknown LaTeX output format \"#{$LATEX_OUTPUT_FORMAT}\""
-end
-
-def msg (m)
-  puts "RAKE: " + m
-  STDOUT.flush
-end
-
-def warn (m)
-  puts ">>> WARNING: " + m
-  STDOUT.flush
-end
-
-
-####################################################################
-# Stolen from
-# http://svn.ruby-lang.org/repos/ruby/trunk/lib/shellwords.rb
-# for compatibility with Ruby 1.8
-def shellescape(str)
-  str = str.to_s
-
-  # An empty argument will be skipped, so return empty quotes.
-  return "''" if str.empty?
-
-  str = str.dup
-
-  # Treat multibyte characters as is.  It is caller's responsibility
-  # to encode the string in the right encoding for the shell
-  # environment.
-  str.gsub!(/([^A-Za-z0-9_\-.,:\/@\n])/, "\\\\\\1")
-
-  # A LF cannot be escaped with a backslash because a backslash + LF
-  # combo is regarded as line continuation and simply ignored.
-  str.gsub!(/\n/, "'\n'")
-
-  return str
-end
-
-def shelljoin(array)
-  array.map { |arg| shellescape(arg) }.join(' ')
-end
-####################################################################
-
 
 $LATEX_CMD = [$LATEX, '-interaction=nonstopmode', '-halt-on-error']
 $LATEX_CMD += ['-fmt', 'latex', '-output-format', $LATEX_OUT_FMT]
@@ -178,19 +186,27 @@ if defined? $BIBTEX_OPTS
   $BIBTEX_CMD += $BIBTEX_OPTS
 end
 
+$MAIN_OUTPUT = "#{$BUILD_DIR}/#{$MAIN_JOB}.#{$LATEX_OUT_FMT}"
+
+
+
+#######################
+# Auxillary functions #
+#######################
+
 # latex draft mode does not create the pdf (or look at images)
 def run_latex_draft (dir, name, file)
   command = $LATEX_CMD + ['-draftmode', '-jobname', name, file]
   output = ""
   Dir.chdir(dir) do
     output = `#{shelljoin command}`
+    if $? != 0
+      puts output
+      fail "RAKE: LaTeX error in job #{name}."
+    end
+    # When in DVI mode, the DVI file will be created even with -draftmode
+    rm_f "#{name}.#{$LATEX_OUT_FMT}"
   end
-  if $? != 0
-    puts output
-    fail "RAKE: LaTeX error in job #{name}."
-  end
-  # When in DVI mode, the DVI file will be created even with -draftmode
-  rm_f $BUILD_OUTPUT
 end
 
 def run_latex (dir, name, file, depth=0)
@@ -214,31 +230,6 @@ def run_latex (dir, name, file, depth=0)
   end
 end
 
-for f in $INCLUDE_FILES
-  if File.extname(f) == '.eps' and $LATEX_OUT_FMT == 'pdf'
-    fbase = File.basename f, '.eps'
-    fbuild = "#{$BUILD_DIR}/#{fbase}.pdf"
-    $BUILD_FILES << fbuild
-    file fbuild => [$BUILD_DIR,f] do |t|
-      command = [$EPSTOPDF] + $EPSTOPDF_OPTS + ['--outfile='+t.name, t.prerequisites[1]]
-      output = ""
-      output = `#{shelljoin command}`
-      if $? != 0
-        puts "#{shelljoin command}"
-        puts output
-        fail "RAKE: Could not create PDF file from EPS #{name}."
-      end
-    end
-  else
-    fbase = File.basename f
-    fbuild = "#{$BUILD_DIR}/#{fbase}"
-    $BUILD_FILES << fbuild
-    file fbuild => [$BUILD_DIR,f] do |t|
-      cp t.prerequisites[1], t.name
-    end
-  end
-end
-
 def has_cites (auxfile)
   f = open(auxfile)
   found_cites = false
@@ -251,63 +242,6 @@ def has_cites (auxfile)
   f.close
   found_cites
 end
-
-def find_bibfiles
-  f = open($MAIN_FILE)
-  $BIBFILES = []
-  f.each_line do |ln|
-    bibs = stripcomments(ln).scan(/\\bibliography\{([^}]*)\}/)
-    for b in bibs
-      b = b[0].strip
-      if File.exists?("#{b}.bib")
-        file "#{$BUILD_DIR}/#{b}.bib" => [$BUILD_DIR,"#{b}.bib"] do |t|
-          cp t.prerequisites[1], t.name
-        end
-        $BIBFILES << "#{$BUILD_DIR}/#{b}.bib"
-      elsif File.exists?("#{b}.bbl")
-        file "#{$BUILD_DIR}/#{b}.bbl" => [$BUILD_DIR,"#{b}.bbl"] do |t|
-          cp t.prerequisites[1], t.name
-        end
-      else
-        warn "Could not find bibliography file #{b}.bib or #{b}.bbl, referenced from #{$MAIN_FILE}"
-      end
-    end
-  end
-  f.close
-
-  if $BIBFILES.length > 0
-    file "#{$BUILD_DIR}/#{$MAIN_JOB}.bbl" => $BIBFILES+["#{$BUILD_DIR}/#{$MAIN_JOB}.aux"] do |t|
-      aux = "#{$BUILD_DIR}/#{$MAIN_JOB}.aux"
-      old_aux = "#{$BUILD_DIR}/#{$MAIN_JOB}.last_bib_run.aux"
-      if has_cites(aux)
-        force = true
-        if File.exists?(t.name)
-          force = t.prerequisites.detect do |p|
-            p.end_with?(".bib") and File.stat(p).mtime >= File.stat(t.name).mtime
-          end
-        end
-        if force or !File.exists?old_aux or !identical?(aux,old_aux)
-          msg 'Running BibTeX'
-          command = $BIBTEX_CMD + [$MAIN_JOB]
-          Dir.chdir($BUILD_DIR) do
-            system(*command)
-          end
-          unless $? == 0
-            fail "RAKE: BibTeX error in job #{$MAIN_JOB}."
-          end
-        end
-      elsif !File.exists?old_aux or !identical?(aux,old_aux)
-        msg 'No citations; skipping BibTeX'
-        if File.exists?(t.name)
-          rm t.name
-        end
-      end
-      cp aux, old_aux
-    end
-    file $BUILD_OUTPUT => "#{$BUILD_DIR}/#{$MAIN_JOB}.bbl"
-  end
-end
-find_bibfiles
 
 def check_log(logfile)
   f = open(logfile)
@@ -345,55 +279,196 @@ def check_log(logfile)
   return !has_problems
 end
 
-file $BUILD_OUTPUT => $BUILD_FILES do
-  msg "Building #{$MAIN_FILE}"
-  run_latex $BUILD_DIR, $MAIN_JOB, $MAIN_FILE
+def open_pdf(file)
+  msg "Opening application to view PDF"
+  apps = ['xdg-open', # linux
+          'open',     # mac
+          'start']    # windows
+  success = apps.detect do
+    |app| system(app, file)
+  end
+  if !success
+    fail "Could not figure out how to open the PDF file"
+  end
 end
+
+
+
+############################
+# Here beginneth the tasks #
+############################
 
 directory $BUILD_DIR
 directory $DIST_NAME
-directory $DIST_NAME
 directory "#{$BUILD_DIR}/preview"
 
-file "#{$BUILD_DIR}/#{$MAIN_JOB}.aux" => ($BUILD_FILES+[$MAIN_FILE]) do
-  msg "Building #{$MAIN_FILE} to find refs"
-  run_latex_draft $BUILD_DIR, $MAIN_JOB, $MAIN_FILE
+# Copy files to the build directory
+for f in $INCLUDE_FILES
+  if File.extname(f) == '.eps' and $LATEX_OUT_FMT == 'pdf'
+    fbase = File.basename f, '.eps'
+    fbuild = "#{$BUILD_DIR}/#{fbase}.pdf"
+    $BUILD_FILES << fbuild
+    file fbuild => [$BUILD_DIR,f] do |t|
+      command = [$EPSTOPDF] + $EPSTOPDF_OPTS + ['--outfile='+t.name, t.prerequisites[1]]
+      output = ""
+      output = `#{shelljoin command}`
+      if $? != 0
+        puts "#{shelljoin command}"
+        puts output
+        fail "RAKE: Could not create PDF file from EPS #{name}."
+      end
+    end
+  else
+    fbase = File.basename f
+    fbuild = "#{$BUILD_DIR}/#{fbase}"
+    $BUILD_FILES << fbuild
+    file fbuild => [$BUILD_DIR,f] do |t|
+      cp t.prerequisites[1], t.name
+    end
+  end
 end
 
-file "#{$MAIN_JOB}.pdf" => ["#{$BUILD_DIR}/#{$MAIN_JOB}.pdf"] do
-  cp "#{$BUILD_DIR}/#{$MAIN_JOB}.pdf", "#{$MAIN_JOB}.pdf"
-end
-file "#{$DIST_NAME}.pdf" => ["#{$BUILD_DIR}/#{$MAIN_JOB}.pdf"] do
-  cp "#{$BUILD_DIR}/#{$MAIN_JOB}.pdf", "#{$DIST_NAME}.pdf"
-end
-# We maintain a separate preview file.
-# This means it is independent of the preview or final PDF, and
-# it can be replaced directly (unlike build/main_job.pdf, which
-# is deleted for a while then recreated) which plays better with
-# PDF readers.
-file "#{$BUILD_DIR}/preview/#{$DIST_NAME}.pdf" => ["#{$BUILD_DIR}/#{$MAIN_JOB}.pdf","#{$BUILD_DIR}/preview"] do
-  cp "#{$BUILD_DIR}/#{$MAIN_JOB}.pdf", "#{$BUILD_DIR}/preview/#{$DIST_NAME}.pdf"
-end
+for job,job_file in $ALL_JOBS
+  job_output = "#{$BUILD_DIR}/#{job}.#{$LATEX_OUT_FMT}"
 
-# We also update the preview
-desc "Create a draft PDF file (#{$MAIN_JOB}.pdf) [default]"
-task :draft => [:check,"#{$MAIN_JOB}.pdf","#{$BUILD_DIR}/preview/#{$DIST_NAME}.pdf"]
-task :default => [:draft]
+  if $LATEX_OUT_FMT == 'dvi'
+    file "#{$BUILD_DIR}/#{job}.ps" => [job_output] do |t|
+      command = [$DVIPS] + $DVIPS_OPTS + ['-o', t.name, t.prerequisites[0]]
+      output = ""
+      msg "Converting DVI file to Postscript"
+      output = `#{shelljoin command} 2>&1`
+      if $? != 0
+        puts output
+        fail "RAKE: Could not create PS file from DVI #{t.prerequisites[0]}."
+      end
+    end
+    file "#{$BUILD_DIR}/#{job}.pdf" => ["#{$BUILD_DIR}/#{job}.ps"] do |t|
+      command = [$PS2PDF] + $PS2PDF_OPTS + [t.prerequisites[0], t.name]
+      output = ""
+      msg "Converting Postscript file to PDF"
+      output = `#{shelljoin command}`
+      if $? != 0
+        puts output
+        fail "RAKE: Could not create PDF file from PS #{t.prerequisites[0]}."
+      end
+    end
+  elsif $LATEX_OUT_FMT != 'pdf'
+    fail "Unknown LaTeX output format \"#{$LATEX_OUT_FMT}\""
+  end
 
-# We also update the preview
-desc "Create the final PDF file (#{$DIST_NAME}.pdf)"
-task :final => [:check_final,"#{$DIST_NAME}.pdf","#{$BUILD_DIR}/preview/#{$DIST_NAME}.pdf"]
+  f = open(job_file)
+  job_bibfiles = []
+  f.each_line do |ln|
+    bibs = stripcomments(ln).scan(/\\bibliography\{([^}]*)\}/)
+    for b in bibs
+      b = b[0].strip
+      if File.exists?("#{b}.bib")
+        file "#{$BUILD_DIR}/#{b}.bib" => [$BUILD_DIR,"#{b}.bib"] do |t|
+          cp t.prerequisites[1], t.name
+        end
+        job_bibfiles << "#{$BUILD_DIR}/#{b}.bib"
+      elsif File.exists?("#{b}.bbl")
+        file "#{$BUILD_DIR}/#{b}.bbl" => [$BUILD_DIR,"#{b}.bbl"] do |t|
+          cp t.prerequisites[1], t.name
+        end
+      else
+        warn "Could not find bibliography file #{b}.bib or #{b}.bbl, referenced from #{$MAIN_FILE}"
+      end
+    end
+  end
+  f.close
+
+  if job_bibfiles.length > 0
+    file "#{$BUILD_DIR}/#{job}.bbl" => job_bibfiles+["#{$BUILD_DIR}/#{job}.aux"] do |t|
+      aux = "#{$BUILD_DIR}/#{job}.aux"
+      old_aux = "#{$BUILD_DIR}/#{job}.last_bib_run.aux"
+      if has_cites(aux)
+        force = true
+        if File.exists?(t.name)
+          force = t.prerequisites.detect do |p|
+            p.end_with?(".bib") and File.stat(p).mtime >= File.stat(t.name).mtime
+          end
+        end
+        if force or !File.exists?old_aux or !identical?(aux,old_aux)
+          msg 'Running BibTeX'
+          command = $BIBTEX_CMD + [job]
+          Dir.chdir($BUILD_DIR) do
+            system(*command)
+          end
+          unless $? == 0
+            fail "RAKE: BibTeX error in job #{job}."
+          end
+        end
+      elsif !File.exists?old_aux or !identical?(aux,old_aux)
+        msg 'No citations; skipping BibTeX'
+        if File.exists?(t.name)
+          rm t.name
+        end
+      end
+      cp aux, old_aux
+    end
+    file job_output => "#{$BUILD_DIR}/#{job}.bbl"
+  end
+  $BIBFILES += job_bibfiles
+
+  file job_output => $BUILD_FILES do
+    msg "Building #{job_file}"
+    run_latex $BUILD_DIR, job, job_file
+  end
+
+  file "#{$BUILD_DIR}/#{job}.aux" => ($BUILD_FILES+[job_file]) do
+    msg "Building #{job_file} to find refs"
+    run_latex_draft $BUILD_DIR, job, job_file
+  end
+
+  file "#{job}.pdf" => ["#{$BUILD_DIR}/#{job}.pdf"] do
+    cp "#{$BUILD_DIR}/#{job}.pdf", "#{job}.pdf"
+  end
+  # We maintain a separate preview file.
+  # This means it is independent of the preview or final PDF, and
+  # it can be replaced directly (unlike build/main_job.pdf, which
+  # is deleted for a while then recreated) which plays better with
+  # PDF readers.
+  file "#{$BUILD_DIR}/preview/#{job}.pdf" => ["#{$BUILD_DIR}/#{job}.pdf","#{$BUILD_DIR}/preview"] do
+    cp "#{$BUILD_DIR}/#{job}.pdf", "#{$BUILD_DIR}/preview/#{job}.pdf"
+  end
+
+  desc "Check for problems with the LaTeX document for the #{job} job"
+  task "check-#{job}" => job_output do
+    check_log("#{$BUILD_DIR}/#{job}.log")
+  end
+
+  # We also update the preview
+  desc "Create the #{job}.pdf file"
+  task "build-#{job}" => ["check-#{job}",
+                           "#{job}.pdf",
+                           "#{$BUILD_DIR}/preview/#{job}.pdf"]
+
+  desc "Create the #{job}.pdf file and open it in a PDF viewer"
+  task "view-#{job}" => ["#{$BUILD_DIR}/preview/#{job}.pdf"] do
+    open_pdf("#{$BUILD_DIR}/preview/#{job}.pdf")
+  end
+end
 
 desc "Check for problems with the LaTeX document (eg: unresolved references)"
-task :check => $BUILD_OUTPUT do
-  check_log("#{$BUILD_DIR}/#{$MAIN_JOB}.log")
-end
-task :check_final => $BUILD_OUTPUT do
+task :check => "check-#{$MAIN_JOB}"
+task :check_final => $MAIN_OUTPUT do
   is_ok = check_log("#{$BUILD_DIR}/#{$MAIN_JOB}.log")
   if !is_ok
     fail "There are still problems with the LaTeX document (see above)"
   end
 end
+
+desc "Create a draft version of the main PDF file (#{$MAIN_JOB}.pdf) [default]"
+task :draft => "build-#{$MAIN_JOB}"
+task :default => [:draft]
+
+# We also update the preview
+desc "Create the final version of the main PDF file (#{$MAIN_JOB}.pdf)"
+task :final => [:check_final,"#{$MAIN_JOB}.pdf","#{$BUILD_DIR}/preview/#{$MAIN_JOB}.pdf"]
+
+desc "Create the main PDF file and open it in a PDF viewer"
+task :view => "view-#{$MAIN_JOB}"
 
 desc "Create a tar archive containing all the source files"
 task :tar => [$DIST_NAME,"#{$BUILD_DIR}/#{$MAIN_JOB}.bbl"] do
@@ -414,20 +489,6 @@ task :arxiv => [$DIST_NAME,"#{$BUILD_DIR}/#{$MAIN_JOB}.bbl"] do
   cp files, $DIST_NAME
   system('tar', 'czf', "#{$DIST_NAME}-arxiv.tar.gz", $DIST_NAME)
   rm_rf $DIST_NAME
-end
-
-desc "Create the PDF file and open it in a PDF viewer"
-task :view => ["#{$BUILD_DIR}/preview/#{$DIST_NAME}.pdf"] do
-  msg "Opening application to view PDF"
-  apps = ['xdg-open', # linux
-          'open',     # mac
-          'start']    # windows
-  success = apps.detect do
-    |app| system(app, "#{$BUILD_DIR}/preview/#{$DIST_NAME}.pdf")
-  end
-  if !success
-    fail "Could not figure out how to open the PDF file"
-  end
 end
 
 desc "Remove all build files and archives"
