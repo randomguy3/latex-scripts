@@ -223,7 +223,7 @@ def run_latex (dir, name, file, depth=0)
       if depth > 4
         fail "Failed to resolve all cross-references after 4 attempts"
       else
-        msg "Rebuilding #{file} to get cross-references right"
+        msg "Rebuilding #{name} to get cross-references right"
         run_latex dir, name, file, (depth+1)
       end
     end
@@ -412,12 +412,12 @@ for job,job_file in $ALL_JOBS
   $BIBFILES += job_bibfiles
 
   file job_output => $BUILD_FILES do
-    msg "Building #{job_file}"
+    msg "Building #{job}"
     run_latex $BUILD_DIR, job, job_file
   end
 
   file "#{$BUILD_DIR}/#{job}.aux" => ($BUILD_FILES+[job_file]) do
-    msg "Building #{job_file} to find refs"
+    msg "Building #{job} to find refs"
     run_latex_draft $BUILD_DIR, job, job_file
   end
 
