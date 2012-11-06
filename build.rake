@@ -453,7 +453,7 @@ for job,job_file in $ALL_JOBS
   end
 
   desc "Check for problems with the LaTeX document for the #{job} job"
-  task "check-#{job}" => job_output do
+  task "check-#{job}" => [job_output] do
     check_log("#{$BUILD_DIR}/#{job}.log")
   end
 
