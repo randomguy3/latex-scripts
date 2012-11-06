@@ -60,6 +60,34 @@ def shelljoin(array)
 end
 ####################################################################
 
+def slurp_citations(auxfile)
+  cites = ""
+  f = open(auxfile)
+  f.each_line do |ln|
+    if ln[/\\citation/,1]
+      cites += ln
+    end
+  end
+  f.close()
+end
+
+def same_citations?(auxfile1, auxfile2)
+  return slurp_citations(auxfile1) == slurp_citations(auxfile2)
+end
+
+def has_citations? (auxfile)
+  f = open(auxfile)
+  found_cites = false
+  f.each_line do |ln|
+    if ln.start_with?"\\citation"
+      found_cites = true
+      break
+    end
+  end
+  f.close
+  found_cites
+end
+
 
 
 ################################
@@ -230,19 +258,6 @@ def run_latex (dir, name, file, depth=0)
   end
 end
 
-def has_cites (auxfile)
-  f = open(auxfile)
-  found_cites = false
-  f.each_line do |ln|
-    if ln.start_with?"\\citation"
-      found_cites = true
-      break
-    end
-  end
-  f.close
-  found_cites
-end
-
 def check_log(logfile)
   f = open(logfile)
   has_todos = false
@@ -380,16 +395,17 @@ for job,job_file in $ALL_JOBS
 
   if job_bibfiles.length > 0
     file "#{$BUILD_DIR}/#{job}.bbl" => job_bibfiles+["#{$BUILD_DIR}/#{job}.aux"] do |t|
+      bbl_file = t.name
       aux = "#{$BUILD_DIR}/#{job}.aux"
       old_aux = "#{$BUILD_DIR}/#{job}.last_bib_run.aux"
-      if has_cites(aux)
+      if has_citations?(aux)
         force = true
-        if File.exists?(t.name)
+        if File.exists?(bbl_file)
           force = t.prerequisites.detect do |p|
-            p.end_with?(".bib") and File.stat(p).mtime >= File.stat(t.name).mtime
+            p.end_with?(".bib") and File.stat(p).mtime >= File.stat(bbl_file).mtime
           end
         end
-        if force or !File.exists?old_aux or !identical?(aux,old_aux)
+        if force or !File.exists?old_aux or !same_citations?(aux,old_aux)
           msg 'Running BibTeX'
           command = $BIBTEX_CMD + [job]
           Dir.chdir($BUILD_DIR) do
@@ -399,10 +415,13 @@ for job,job_file in $ALL_JOBS
             fail "RAKE: BibTeX error in job #{job}."
           end
         end
-      elsif !File.exists?old_aux or !identical?(aux,old_aux)
-        msg 'No citations; skipping BibTeX'
-        if File.exists?(t.name)
-          rm t.name
+      else
+        if !File.exists?old_aux or !same_citations?(aux,old_aux)
+          # we would normally have run it; say why we aren't
+          msg 'No citations; skipping BibTeX'
+        end
+        if File.exists?(bbl_file)
+          rm bbl_file
         end
       end
       cp aux, old_aux
