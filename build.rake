@@ -175,33 +175,44 @@ end
 ######################
 
 $BUILD_FILES = []
-$INCLUDE_FILES = Dir[ 'tex/*', 'figures/*'] | $EXTRA_INCLUDES
+$INCLUDE_FILES = Dir[ 'tex/*', 'figures/*', '*.bib' ] | $EXTRA_INCLUDES
 $ALL_JOBS = $SIDE_JOBS.merge({$MAIN_JOB => $MAIN_FILE})
 $ALL_JOBS.each_value {|v| $INCLUDE_FILES << v}
-$BIBFILES = []
+$INCLUDE_FILES << $HEADER if defined?$HEADER and !$INCLUDE_FILES.include?$HEADER
+$INCLUDE_FILES << $FOOTER if defined?$FOOTER and !$INCLUDE_FILES.include?$FOOTER
 
 if !(defined? $LATEX_OUT_FMT)
   $LATEX_OUT_FMT = 'pdf'
-  dvi_classes = ['powerdot',
-                 'prosper']
-  f = open($MAIN_FILE)
-  i = 0
-  f.each_line do |ln|
-    match_data = stripcomments(ln).match(/\\documentclass(?:\[[^\]]*\])?\{([^}]*)\}/)
-    if match_data
-      doc_class = match_data[1]
-      if dvi_classes.include?doc_class
-        $LATEX_OUT_FMT = 'dvi'
+  def check_for_bad_classes(file)
+    found = false
+    dvi_classes = ['powerdot',
+                   'prosper']
+    f = open(file)
+    i = 0
+    f.each_line do |ln|
+      match_data = stripcomments(ln).match(/\\documentclass(?:\[[^\]]*\])?\{([^}]*)\}/)
+      if match_data
+        doc_class = match_data[1]
+        if dvi_classes.include?doc_class
+          $LATEX_OUT_FMT = 'dvi'
+        end
+        found = true
+        break
       end
-      break
+      # only bother checking the first 50 lines
+      if i >= 50
+        break
+      end
+      i += 1
     end
-    # only bother checking the first 50 lines
-    if i >= 50
-      break
-    end
-    i += 1
+    f.close
+    return found
   end
-  f.close
+  if not check_for_bad_classes($MAIN_FILE)
+    if defined?$HEADER and File.exists?$HEADER
+      check_for_bad_classes($HEADER)
+    end
+  end
 end
 
 $LATEX_CMD = [$LATEX, '-interaction=nonstopmode', '-halt-on-error']
@@ -213,8 +224,6 @@ $BIBTEX_CMD = [$BIBTEX, '-terse']
 if defined? $BIBTEX_OPTS
   $BIBTEX_CMD += $BIBTEX_OPTS
 end
-
-$MAIN_OUTPUT = "#{$BUILD_DIR}/#{$MAIN_JOB}.#{$LATEX_OUT_FMT}"
 
 
 
@@ -307,15 +316,77 @@ def open_pdf(file)
   end
 end
 
+$_BIBS_CACHE = {}
+def get_bibs?(texfile)
+  if $_BIBS_CACHE.has_key?texfile
+    return $_BIBS_CACHE[texfile]
+  end
+  f = open(texfile)
+  bibfiles = []
+  f.each_line do |ln|
+    bibs = stripcomments(ln).scan(/\\bibliography\{([^}]*)\}/)
+    for b in bibs
+      bibfiles << "#{$BUILD_DIR}/#{b[0].strip}.bib"
+    end
+  end
+  f.close
+  if defined?$FOOTER and File.exists?$FOOTER
+    f = open($FOOTER)
+    bibfiles = []
+    f.each_line do |ln|
+      bibs = stripcomments(ln).scan(/\\bibliography\{([^}]*)\}/)
+      for b in bibs
+        bibfiles << "#{$BUILD_DIR}/#{b[0].strip}.bib"
+      end
+    end
+    f.close
+  end
+  $_BIBS_CACHE[texfile] = bibfiles
+  return bibfiles
+end
+def get_bibs_from_jobfile?(jobfile)
+  jobname = File.basename(jobfile).sub(/\.[^.]+$/, '')
+  inputFile = $ALL_JOBS.fetch(jobname, jobname+'.tex')
+  get_bibs?(inputFile)
+end
+def get_bibs_for_job?(jobname)
+  inputFile = $ALL_JOBS.fetch(jobname, jobname+'.tex')
+  get_bibs?(inputFile)
+end
+
+# proc to convert a job file (eg: the aux or pdf file) to
+# an input file
+jobFileToInputFile = proc { |fname|
+  jobname = File.basename(fname).sub(/\.[^.]+$/, '')
+  $BUILD_DIR + '/' + $ALL_JOBS.fetch(jobname, jobname+'.tex')
+}
+
+bblFileIfHasBibs = proc { |jobfile|
+  if not get_bibs_from_jobfile?(jobfile).empty?
+    [jobfile.sub(/\.[^.]+$/, '.bbl')]
+  else
+    []
+  end
+}
+
+mainJobBblFile = proc {
+  if not get_bibs_for_job?($MAIN_JOB).empty?
+    ["#{$BUILD_DIR}/#{$MAIN_JOB}.bbl"]
+  else
+    []
+  end
+}
 
 
-############################
-# Here beginneth the tasks #
-############################
+
+#####################################################
+# Rules to create the various files and directories #
+#####################################################
 
 directory $BUILD_DIR
 directory $DIST_NAME
-directory "#{$BUILD_DIR}/preview"
+
+rexp_safe_build_dir = Regexp.quote($BUILD_DIR)
 
 # Copy files to the build directory
 for f in $INCLUDE_FILES
@@ -343,135 +414,126 @@ for f in $INCLUDE_FILES
   end
 end
 
-for job,job_file in $ALL_JOBS
-  job_output = "#{$BUILD_DIR}/#{job}.#{$LATEX_OUT_FMT}"
-
-  if $LATEX_OUT_FMT == 'dvi'
-    file "#{$BUILD_DIR}/#{job}.ps" => [job_output] do |t|
-      command = [$DVIPS] + $DVIPS_OPTS + ['-o', t.name, t.prerequisites[0]]
-      output = ""
-      msg "Converting DVI file to Postscript"
-      output = `#{shelljoin command} 2>&1`
-      if $? != 0
-        puts output
-        fail "RAKE: Could not create PS file from DVI #{t.prerequisites[0]}."
-      end
-    end
-    file "#{$BUILD_DIR}/#{job}.pdf" => ["#{$BUILD_DIR}/#{job}.ps"] do |t|
-      command = [$PS2PDF] + $PS2PDF_OPTS + [t.prerequisites[0], t.name]
-      output = ""
-      msg "Converting Postscript file to PDF"
-      output = `#{shelljoin command}`
-      if $? != 0
-        puts output
-        fail "RAKE: Could not create PDF file from PS #{t.prerequisites[0]}."
-      end
-    end
-  elsif $LATEX_OUT_FMT != 'pdf'
-    fail "Unknown LaTeX output format \"#{$LATEX_OUT_FMT}\""
-  end
-
-  f = open(job_file)
-  job_bibfiles = []
-  f.each_line do |ln|
-    bibs = stripcomments(ln).scan(/\\bibliography\{([^}]*)\}/)
-    for b in bibs
-      b = b[0].strip
-      if File.exists?("#{b}.bib")
-        file "#{$BUILD_DIR}/#{b}.bib" => [$BUILD_DIR,"#{b}.bib"] do |t|
-          cp t.prerequisites[1], t.name
-        end
-        job_bibfiles << "#{$BUILD_DIR}/#{b}.bib"
-      elsif File.exists?("#{b}.bbl")
-        file "#{$BUILD_DIR}/#{b}.bbl" => [$BUILD_DIR,"#{b}.bbl"] do |t|
-          cp t.prerequisites[1], t.name
-        end
-      else
-        warn "Could not find bibliography file #{b}.bib or #{b}.bbl, referenced from #{$MAIN_FILE}"
-      end
+# If we're using LaTeX in DVI mode, convert to PDF (via PS)
+if $LATEX_OUT_FMT == 'dvi'
+  rule '.ps' => ['.dvi'] do |t|
+    psfile = t.name
+    dvifile = psfile.sub(/\.[^.]+$/, '.dvi')
+    command = [$DVIPS] + $DVIPS_OPTS + ['-o', psfile, dvifile]
+    output = ""
+    msg "Converting DVI file to Postscript"
+    output = `#{shelljoin command} 2>&1`
+    if $? != 0
+      puts output
+      fail "RAKE: Could not create PS file from DVI #{dvifile}."
     end
   end
-  f.close
-
-  if job_bibfiles.length > 0
-    file "#{$BUILD_DIR}/#{job}.bbl" => job_bibfiles+["#{$BUILD_DIR}/#{job}.aux"] do |t|
-      bbl_file = t.name
-      aux = "#{$BUILD_DIR}/#{job}.aux"
-      old_aux = "#{$BUILD_DIR}/#{job}.last_bib_run.aux"
-      if has_citations?(aux)
-        force = true
-        if File.exists?(bbl_file)
-          force = t.prerequisites.detect do |p|
-            p.end_with?(".bib") and File.stat(p).mtime >= File.stat(bbl_file).mtime
-          end
-        end
-        if force or !File.exists?old_aux or !same_citations?(aux,old_aux)
-          msg 'Running BibTeX'
-          command = $BIBTEX_CMD + [job]
-          Dir.chdir($BUILD_DIR) do
-            system(*command)
-          end
-          unless $? == 0
-            fail "RAKE: BibTeX error in job #{job}."
-          end
-        end
-      else
-        if !File.exists?old_aux or !same_citations?(aux,old_aux)
-          # we would normally have run it; say why we aren't
-          msg 'No citations; skipping BibTeX'
-        end
-        if File.exists?(bbl_file)
-          rm bbl_file
-        end
-      end
-      cp aux, old_aux
+  rule( /^#{rexp_safe_build_dir}\/[^\/]*\.pdf$/ => [
+         proc {|pdf_file| pdf_file.sub(/\.[^.]+$/, '.ps') }
+        ]) do |t|
+    pdffile = t.name
+    psfile = pdffile.sub(/\.[^.]+$/, '.ps')
+    command = [$PS2PDF] + $PS2PDF_OPTS + [psfile, pdffile]
+    output = ""
+    msg "Converting Postscript file to PDF"
+    output = `#{shelljoin command}`
+    if $? != 0
+      puts output
+      fail "RAKE: Could not create PDF file from PS #{psfile}."
     end
-    file job_output => "#{$BUILD_DIR}/#{job}.bbl"
   end
-  $BIBFILES += job_bibfiles
+elsif $LATEX_OUT_FMT != 'pdf'
+  fail "Unknown LaTeX output format \"#{$LATEX_OUT_FMT}\""
+end
 
-  file job_output => $BUILD_FILES do
-    msg "Building #{job}"
-    run_latex $BUILD_DIR, job, job_file
+# Create bibliographies
+rule( /^#{rexp_safe_build_dir}\/[^\/]*\.bbl$/ =>
+      proc {|bbl_file|
+        [bbl_file.sub(/\.[^.]+$/, '.aux')]+
+          get_bibs_from_jobfile?(bbl_file)
+      }) do |t|
+  bbl_file = t.name
+  jobname = File.basename(bbl_file, '.bbl')
+  aux = bbl_file.sub(/\.[^.]+$/, '.aux')
+  old_aux = aux + ".last_bib_run"
+  if has_citations?(aux)
+    force = true
+    if File.exists?(bbl_file)
+      force = t.prerequisites.detect do |p|
+        p.end_with?(".bib") and File.stat(p).mtime >= File.stat(bbl_file).mtime
+      end
+    end
+    if force or !File.exists?old_aux or !same_citations?(aux,old_aux)
+      msg 'Running BibTeX'
+      command = $BIBTEX_CMD + [jobname]
+      Dir.chdir($BUILD_DIR) do
+        system(*command)
+      end
+      unless $? == 0
+        fail "RAKE: BibTeX error in job #{jobname}."
+      end
+    end
+  else
+    if !File.exists?old_aux or !same_citations?(aux,old_aux)
+      # we would normally have run it; say why we aren't
+      msg 'No citations; skipping BibTeX'
+    end
+    if File.exists?(bbl_file)
+      rm bbl_file
+    end
   end
+  cp aux, old_aux
+end
 
-  file "#{$BUILD_DIR}/#{job}.aux" => ($BUILD_FILES+[job_file]) do
-    msg "Building #{job} to find refs"
-    run_latex_draft $BUILD_DIR, job, job_file
-  end
+rule( /^#{rexp_safe_build_dir}\/[^\/]*\.#{$LATEX_OUT_FMT}$/ =>
+     ([jobFileToInputFile,bblFileIfHasBibs]+$BUILD_FILES)) do |t|
+  jobname = File.basename(t.name, '.' + $LATEX_OUT_FMT)
+  inputfile = jobFileToInputFile.call(t.name)
+  msg "Building #{jobname}"
+  run_latex $BUILD_DIR, jobname, File.basename(inputfile)
+end
 
-  file "#{job}.pdf" => ["#{$BUILD_DIR}/#{job}.pdf"] do
-    cp "#{$BUILD_DIR}/#{job}.pdf", "#{job}.pdf"
-  end
-  # We maintain a separate preview file.
-  # This means it is independent of the preview or final PDF, and
-  # it can be replaced directly (unlike build/main_job.pdf, which
-  # is deleted for a while then recreated) which plays better with
-  # PDF readers.
-  file "#{$BUILD_DIR}/preview/#{job}.pdf" => ["#{$BUILD_DIR}/#{job}.pdf","#{$BUILD_DIR}/preview"] do
-    cp "#{$BUILD_DIR}/#{job}.pdf", "#{$BUILD_DIR}/preview/#{job}.pdf"
-  end
+rule( /^#{rexp_safe_build_dir}\/[^\/]*\.aux$/ => ([jobFileToInputFile]+$BUILD_FILES)) do |t|
+  jobname = File.basename(t.name, '.aux')
+  inputfile = jobFileToInputFile.call(t.name)
+  msg "Building #{jobname} to find refs"
+  run_latex_draft $BUILD_DIR, jobname, File.basename(inputfile)
+end
 
+rule( /^[^\/]*\.pdf$/ => [proc {|f|"#{$BUILD_DIR}/"+f}]) do |t|
+  cp "#{$BUILD_DIR}/"+t.name, t.name
+end
+
+# the log won't be accurate until the final version has been
+# produced
+rule '.log' => ['.'+$LATEX_OUT_FMT]
+
+
+
+##############################
+# Tasks for the user to call #
+##############################
+
+$SIDE_JOBS.each_key do |job|
   desc "Check for problems with the LaTeX document for the #{job} job"
-  task "check-#{job}" => [job_output] do
-    check_log("#{$BUILD_DIR}/#{job}.log")
+  task "check-#{job}" => ["#{$BUILD_DIR}/#{job}.log"] do |t|
+    check_log(t.prerequisites[0])
   end
 
-  # We also update the preview
   desc "Create the #{job}.pdf file"
-  task "build-#{job}" => ["check-#{job}",
-                           "#{job}.pdf",
-                           "#{$BUILD_DIR}/preview/#{job}.pdf"]
+  task "build-#{job}" => ["check-#{job}", "#{job}.pdf"]
 
   desc "Create the #{job}.pdf file and open it in a PDF viewer"
-  task "view-#{job}" => ["#{$BUILD_DIR}/preview/#{job}.pdf"] do
-    open_pdf("#{$BUILD_DIR}/preview/#{job}.pdf")
+  task "view-#{job}" => ["#{job}.pdf"] do |t|
+    open_pdf(t.prerequisites[0])
   end
 end
 
 desc "Check for problems with the LaTeX document (eg: unresolved references)"
-task :check => "check-#{$MAIN_JOB}"
-task :check_final => $MAIN_OUTPUT do
+task :check => ["#{$BUILD_DIR}/#{$MAIN_JOB}.log"] do |t|
+  check_log(t.prerequisites[0])
+end
+task :check_final => "#{$BUILD_DIR}/#{$MAIN_JOB}.log" do
   is_ok = check_log("#{$BUILD_DIR}/#{$MAIN_JOB}.log")
   if !is_ok
     fail "There are still problems with the LaTeX document (see above)"
@@ -479,21 +541,22 @@ task :check_final => $MAIN_OUTPUT do
 end
 
 desc "Create a draft version of the main PDF file (#{$MAIN_JOB}.pdf) [default]"
-task :draft => "build-#{$MAIN_JOB}"
+task :draft => ["check", "#{$MAIN_JOB}.pdf"]
 task :default => [:draft]
 
-# We also update the preview
 desc "Create the final version of the main PDF file (#{$MAIN_JOB}.pdf)"
-task :final => [:check_final,"#{$MAIN_JOB}.pdf","#{$BUILD_DIR}/preview/#{$MAIN_JOB}.pdf"]
+task :final => [:check_final,"#{$MAIN_JOB}.pdf"]
 
 desc "Create the main PDF file and open it in a PDF viewer"
-task :view => "view-#{$MAIN_JOB}"
+task :view => ["#{$MAIN_JOB}.pdf"] do
+  open_pdf("#{$MAIN_JOB}.pdf")
+end
 
 desc "Create a tar archive containing all the source files"
-task :tar => [$DIST_NAME,"#{$BUILD_DIR}/#{$MAIN_JOB}.bbl"] do
+task :tar => [$DIST_NAME] do
   msg "Creating (#{$DIST_NAME}.tar.gz)"
   rm_f "#{$DIST_NAME}.tar.gz"
-  files = $INCLUDE_FILES+$BIBFILES+["#{$BUILD_DIR}/#{$MAIN_JOB}.bbl"]
+  files = $INCLUDE_FILES
   cp files, $DIST_NAME
   system('tar', 'czf', "#{$DIST_NAME}.tar.gz", $DIST_NAME)
   rm_rf $DIST_NAME
@@ -501,10 +564,10 @@ end
 
 desc "Create a tar archive suitable for uploading to the arXiv"
 # We don't include the bibfiles for arXiv
-task :arxiv => [$DIST_NAME,"#{$BUILD_DIR}/#{$MAIN_JOB}.bbl"] do
+task :arxiv => [$DIST_NAME,mainJobBblFile] do
   msg "Creating (#{$DIST_NAME}-arxiv.tar.gz)"
   rm_f "#{$DIST_NAME}-arxiv.tar.gz"
-  files = $INCLUDE_FILES+["#{$BUILD_DIR}/#{$MAIN_JOB}.bbl"]
+  files = $INCLUDE_FILES+mainJobBblFile.call()
   cp files, $DIST_NAME
   system('tar', 'czf', "#{$DIST_NAME}-arxiv.tar.gz", $DIST_NAME)
   rm_rf $DIST_NAME

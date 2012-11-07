@@ -22,6 +22,16 @@ $MAIN_FILE = 'example.tex'
 #  'part1' => 'part1.tex'
 #}
 
+# Header and footer files
+# If you define \documentclass in a separate file, this should be
+# given with $HEADER, and if you define \bibliography in a separate
+# file, this should be given with $FOOTER.  This will help the script
+# figure out what needs to be done.
+# Note that this is the source file location, and so relative paths
+# are important
+#$HEADER = 'tex/header.tex'
+#$FOOTER = 'tex/footer.tex'
+
 # What to name the archive
 # Defauls to $MAIN_JOB
 $DIST_NAME = 'example-archive'

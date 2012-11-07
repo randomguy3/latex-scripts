@@ -1,22 +1,49 @@
+Introduction
+============
+
 This is a simple Rake-based infrastructure for building LaTeX files into PDFs.
 
-It runs pdflatex the necessary number of times to get cross-references right,
-including any from the bibliography.  It will automatically run BibTeX on any
-bib files referenced in a \bibliography{} command in the LaTeX document.
+It has three main aims:
+* automate useful tasks (building, viewing, tarballing)
+* run LaTeX as few times as possible (while still producing the correct output)
+* allow source files to be kept in an organised directory structure while hiding
+  that from the LaTeX scripts (so you don't have to deal with relative paths)
 
-If there are unresolved references or citations, it will warn about them,
-listing the ones that could not be found.  It will also warn about TODOs,
-providing the included commands in tex/todo.sty are used.
+The last point in particular (hiding the directory structure from LaTeX) is
+soemthing not everyone will agree with.
+
+
+Features
+========
+
+* BibTeX is automatically run if the LaTeX document has \bibliography calls
+* Warnings about unresolved references and citations are displayed in a clear
+  format
+* TODOs are warned about (if the commands from tex/todo.sty are used)
+* Partial/side jobs (eg: individual chapters) are supported
+* EPS figures automatically converted to PDF as necessary
+* Can produce DVI output and convert that to PDF via postscript if necessary
+  (eg: for pstricks)
+* No need to worry about relative directories from within LaTeX
+
+
+Setup
+=====
 
 The main part of the script is in build.rake.  This should just be dropped into
-the same directory as the LaTeX file.  Customisation for a particular LaTeX file
-happens in the Rakefile, which should import build.rake.
+the same directory as the LaTeX file.  You probably also want to copy
+tex/todo.sty to your project, in order to have nice TODO commands.
+
+Customisation for a particular LaTeX file happens in the Rakefile, which should
+import build.rake.
 
 * $MAIN_JOB specifies the base name of the output file
-* $MAIN_FILE specifies the input tex file (default is based on $MAIN_JOB)
+* $MAIN_FILE specifies the input tex file (default: $MAIN_JOB.tex)
 * $SIDE_JOBS lists extra jobs and their input files (eg: separate chapters)
-* $DIST_NAME is the name of the archive
-* $EXTRA_INCLUDES allows extra files to be added
+* $DIST_NAME is the name of the archive (default: same as $MAIN_JOB)
+* $EXTRA_INCLUDES allows extra files to be added (files included by default:
+  .bib files, anything in figures/, anything in tex/, $MAIN_FILE, $HEADER,
+  $FOOTER and anything in $SIDE_JOBS).
 * $LATEX_OUTPUT_FMT defaults to pdf, unless the document class is one of a
   known few that cannot output directly to this format, in which case dvi
   output is used (and the pdf version is generated with dvips and ps2pdf).
@@ -27,24 +54,33 @@ happens in the Rakefile, which should import build.rake.
 * Extra options can be added using the _OPTS versions of these variables
   (eg: $LATEX_OPTS).
 
+
+Usage
+=====
+
+Run `rake -T` for a list of available rake tasks.  Mostly, you will want to run
+`rake` to build the main PDF file, and `rake view` to open it in a suitable
+viewer.
+
+
+
+Caveats
+=======
+
 Note that while it is possible to override the various commands using the
-above variables, the script expects certain arguments to be accepted and
-the LaTeX log output to be of a certain form.
+configuration variables, the script expects certain arguments to be accepted
+and the LaTeX log output to be of a certain form.  Basically, only pdfLaTeX is
+supported.
 
 The script works by copying all files into a build directory, and running
 pdflatex from that directory.  This keeps your working directory clean, and
 allows you to structure your files (particuarly included files) while treating
-them as being in the current directory from within your LaTeX file.
-
-The script will find the file $MAIN_JOB.tex, anything in the "tex" subdirectory
-and anything in the "figures" subdirectory.  BibTeX files in the main directory
-that are referenced by the main TeX file will also be found.  Any other files
-can be added to $EXTRA_INCLUDES.
+them as being in the current directory from within your LaTeX file.  However,
+this also means that you will have to make sure that you don't have two files
+with the same name in different directories.
 
 If $LATEX_OUTPUT_FMT is set to 'pdf', any EPS figures (suffix: .eps) will be
 converted to PDF using epstopdf.  If you also have a PDF file of the same name
 (eg: foo.eps and foo.pdf), there is no guarantee as to which one will actually
 be used.
-
-Run `rake -D` for a list of available rake tasks.
 
