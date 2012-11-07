@@ -64,11 +64,12 @@ def slurp_citations(auxfile)
   cites = ""
   f = open(auxfile)
   f.each_line do |ln|
-    if ln[/\\citation/,1]
+    if /\\citation/ =~ ln
       cites += ln
     end
   end
   f.close()
+  return cites
 end
 
 def same_citations?(auxfile1, auxfile2)
