@@ -236,7 +236,7 @@ def run_bibtex(jobname)
   bbl_file = "#{$BUILD_DIR}/#{jobname}.bbl"
   aux = bbl_file.sub(/\.[^.]+$/, '.aux')
   old_aux = aux + ".last_bib_run"
-  did_run = false
+  did_change = false
   if has_citations?(aux)
     force = true
     if File.exists?(bbl_file)
@@ -253,7 +253,7 @@ def run_bibtex(jobname)
       unless $? == 0
         fail "RAKE: BibTeX error in job #{jobname}."
       end
-      did_run = true
+      did_change = true
     end
   else
     if !File.exists?old_aux or !same_citations?(aux,old_aux)
@@ -262,10 +262,11 @@ def run_bibtex(jobname)
     end
     if File.exists?(bbl_file)
       rm bbl_file
+      did_change = true
     end
   end
   cp aux, old_aux
-  return did_run
+  return did_change
 end
 
 # latex draft mode does not create the pdf (or look at images)
@@ -295,7 +296,7 @@ def run_latex (jobname, depth=0)
     puts output
     fail "RAKE: LaTeX error in job #{jobname}."
   else
-    if output["Rerun to get cross-references right."]
+    if run_bibtex(jobname) or output["Rerun to get cross-references right."]
       if depth > 4
         fail "Failed to resolve all cross-references after 4 attempts"
       else
@@ -404,21 +405,13 @@ jobFileToInputFile = proc { |fname|
   $BUILD_DIR + '/' + $ALL_JOBS.fetch(jobname, jobname+'.tex')
 }
 
-bblFileIfHasBibs = proc { |jobfile|
-  if not get_bibs_from_jobfile?(jobfile).empty?
-    [jobfile.sub(/\.[^.]+$/, '.bbl')]
-  else
-    []
-  end
-}
-
-mainJobBblFile = proc {
+def main_job_bbl_file ()
   if not get_bibs_for_job?($MAIN_JOB).empty?
     ["#{$BUILD_DIR}/#{$MAIN_JOB}.bbl"]
   else
     []
   end
-}
+end
 
 
 
@@ -489,6 +482,12 @@ elsif $LATEX_OUT_FMT != 'pdf'
   fail "Unknown LaTeX output format \"#{$LATEX_OUT_FMT}\""
 end
 
+rule( /^#{rexp_safe_build_dir}\/[^\/]*\.aux$/ => ([jobFileToInputFile]+$BUILD_FILES)) do |t|
+  jobname = File.basename(t.name, '.aux')
+  msg "Building #{jobname} to find refs"
+  run_latex_draft jobname
+end
+
 # Create bibliographies
 rule( /^#{rexp_safe_build_dir}\/[^\/]*\.bbl$/ =>
       proc {|bbl_file|
@@ -496,19 +495,19 @@ rule( /^#{rexp_safe_build_dir}\/[^\/]*\.bbl$/ =>
           get_bibs_from_jobfile?(bbl_file)
       }) do |t|
   run_bibtex(File.basename(t.name, '.bbl'))
+  if !File.exists?t.name
+    # we generally expect a file to exist after calling a rule
+    # to create it, but if there are no cites, run_bibtex will
+    # make sure there is no bbl file
+    touch t.name
+  end
 end
 
 rule( /^#{rexp_safe_build_dir}\/[^\/]*\.#{$LATEX_OUT_FMT}$/ =>
-     ([jobFileToInputFile,bblFileIfHasBibs]+$BUILD_FILES)) do |t|
+     ([jobFileToInputFile]+$BUILD_FILES)) do |t|
   jobname = File.basename(t.name, '.' + $LATEX_OUT_FMT)
   msg "Building #{jobname}"
   run_latex jobname
-end
-
-rule( /^#{rexp_safe_build_dir}\/[^\/]*\.aux$/ => ([jobFileToInputFile]+$BUILD_FILES)) do |t|
-  jobname = File.basename(t.name, '.aux')
-  msg "Building #{jobname} to find refs"
-  run_latex_draft jobname
 end
 
 rule( /^[^\/]*\.pdf$/ => [proc {|f|"#{$BUILD_DIR}/"+f}]) do |t|
@@ -575,10 +574,10 @@ end
 
 desc "Create a tar archive suitable for uploading to the arXiv"
 # We don't include the bibfiles for arXiv
-task :arxiv => [$DIST_NAME,mainJobBblFile] do
+task :arxiv => [main_job_bbl_file(),$DIST_NAME] do
   msg "Creating (#{$DIST_NAME}-arxiv.tar.gz)"
   rm_f "#{$DIST_NAME}-arxiv.tar.gz"
-  files = $INCLUDE_FILES+mainJobBblFile.call()
+  files = $INCLUDE_FILES+main_job_bbl_file()
   cp files, $DIST_NAME
   system('tar', 'czf', "#{$DIST_NAME}-arxiv.tar.gz", $DIST_NAME)
   rm_rf $DIST_NAME
