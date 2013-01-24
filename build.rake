@@ -62,13 +62,13 @@ end
 
 def slurp_citations(auxfile)
   cites = ""
-  f = open(auxfile)
-  f.each_line do |ln|
-    if /\\citation/ =~ ln
-      cites += ln
+  open(auxfile) do |f|
+    f.each_line do |ln|
+      if /\\citation/ =~ ln
+        cites += ln
+      end
     end
   end
-  f.close()
   return cites
 end
 
@@ -77,15 +77,15 @@ def same_citations?(auxfile1, auxfile2)
 end
 
 def has_citations? (auxfile)
-  f = open(auxfile)
   found_cites = false
-  f.each_line do |ln|
-    if ln.start_with?"\\citation"
-      found_cites = true
-      break
+  open(auxfile) do |f|
+    f.each_line do |ln|
+      if ln.start_with?"\\citation"
+        found_cites = true
+        break
+      end
     end
   end
-  f.close
   found_cites
 end
 
@@ -186,27 +186,26 @@ if !(defined? $LATEX_OUT_FMT)
   $LATEX_OUT_FMT = 'pdf'
   def check_for_bad_classes(file)
     found = false
-    dvi_classes = ['powerdot',
-                   'prosper']
-    f = open(file)
-    i = 0
-    f.each_line do |ln|
-      match_data = stripcomments(ln).match(/\\documentclass(?:\[[^\]]*\])?\{([^}]*)\}/)
-      if match_data
-        doc_class = match_data[1]
-        if dvi_classes.include?doc_class
-          $LATEX_OUT_FMT = 'dvi'
+    dvi_classes = ['powerdot', 'prosper']
+    open(file) do |f|
+      i = 0
+      f.each_line do |ln|
+        match_data = stripcomments(ln).match(/\\documentclass(?:\[[^\]]*\])?\{([^}]*)\}/)
+        if match_data
+          doc_class = match_data[1]
+          if dvi_classes.include?doc_class
+            $LATEX_OUT_FMT = 'dvi'
+          end
+          found = true
+          break
         end
-        found = true
-        break
+        # only bother checking the first 50 lines
+        if i >= 50
+          break
+        end
+        i += 1
       end
-      # only bother checking the first 50 lines
-      if i >= 50
-        break
-      end
-      i += 1
     end
-    f.close
     return found
   end
   if not check_for_bad_classes($MAIN_FILE)
@@ -269,24 +268,25 @@ def run_latex (dir, name, file, depth=0)
 end
 
 def check_log(logfile)
-  f = open(logfile)
   has_todos = false
   bad_cites = []
   bad_refs = []
-  f.each_line do |ln|
-    if ln["unresolved-TODO"]
-      has_todos = true
-    end
-    bc = ln[/LaTeX Warning: Citation `([^']*)' on page/,1]
-    if bc
-      bad_cites << bc
-    end
-    br = ln[/LaTeX Warning: Reference `([^']*)' on page/,1]
-    if br
-      bad_refs << br
+
+  open(logfile) do |f|
+    f.each_line do |ln|
+      if ln["unresolved-TODO"]
+        has_todos = true
+      end
+      bc = ln[/LaTeX Warning: Citation `([^']*)' on page/,1]
+      if bc
+        bad_cites << bc
+      end
+      br = ln[/LaTeX Warning: Reference `([^']*)' on page/,1]
+      if br
+        bad_refs << br
+      end
     end
   end
-  f.close
 
   has_problems = false
   if has_todos
@@ -322,26 +322,29 @@ def get_bibs?(texfile)
   if $_BIBS_CACHE.has_key?texfile
     return $_BIBS_CACHE[texfile]
   end
-  f = open(texfile)
+
   bibfiles = []
-  f.each_line do |ln|
-    bibs = stripcomments(ln).scan(/\\bibliography\{([^}]*)\}/)
-    for b in bibs
-      bibfiles << "#{$BUILD_DIR}/#{b[0].strip}.bib"
-    end
-  end
-  f.close
-  if defined?$FOOTER and File.exists?$FOOTER
-    f = open($FOOTER)
-    bibfiles = []
+  open(texfile) do |f|
     f.each_line do |ln|
       bibs = stripcomments(ln).scan(/\\bibliography\{([^}]*)\}/)
       for b in bibs
         bibfiles << "#{$BUILD_DIR}/#{b[0].strip}.bib"
       end
     end
-    f.close
   end
+
+  if defined?$FOOTER and File.exists?$FOOTER
+    open($FOOTER) do |f|
+      bibfiles = []
+      f.each_line do |ln|
+        bibs = stripcomments(ln).scan(/\\bibliography\{([^}]*)\}/)
+        for b in bibs
+          bibfiles << "#{$BUILD_DIR}/#{b[0].strip}.bib"
+        end
+      end
+    end
+  end
+
   $_BIBS_CACHE[texfile] = bibfiles
   return bibfiles
 end
