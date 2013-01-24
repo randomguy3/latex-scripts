@@ -231,37 +231,76 @@ end
 # Auxillary functions #
 #######################
 
+def run_bibtex(jobname)
+  #jobname = File.basename(bbl_file, '.bbl')
+  bbl_file = "#{$BUILD_DIR}/#{jobname}.bbl"
+  aux = bbl_file.sub(/\.[^.]+$/, '.aux')
+  old_aux = aux + ".last_bib_run"
+  did_run = false
+  if has_citations?(aux)
+    force = true
+    if File.exists?(bbl_file)
+      force = get_bibs_from_jobfile?(bbl_file).detect do |p|
+        File.stat(p).mtime >= File.stat(bbl_file).mtime
+      end
+    end
+    if force or !File.exists?old_aux or !same_citations?(aux,old_aux)
+      msg 'Running BibTeX'
+      command = $BIBTEX_CMD + [jobname]
+      Dir.chdir($BUILD_DIR) do
+        system(*command)
+      end
+      unless $? == 0
+        fail "RAKE: BibTeX error in job #{jobname}."
+      end
+      did_run = true
+    end
+  else
+    if !File.exists?old_aux or !same_citations?(aux,old_aux)
+      # we would normally have run it; say why we aren't
+      msg 'No citations; skipping BibTeX'
+    end
+    if File.exists?(bbl_file)
+      rm bbl_file
+    end
+  end
+  cp aux, old_aux
+  return did_run
+end
+
 # latex draft mode does not create the pdf (or look at images)
-def run_latex_draft (dir, name, file)
-  command = $LATEX_CMD + ['-draftmode', '-jobname', name, file]
+def run_latex_draft (jobname)
+  file = $ALL_JOBS.fetch(jobname, jobname+'.tex')
+  command = $LATEX_CMD + ['-draftmode', '-jobname', jobname, file]
   output = ""
-  Dir.chdir(dir) do
+  Dir.chdir($BUILD_DIR) do
     output = `#{shelljoin command}`
     if $? != 0
       puts output
-      fail "RAKE: LaTeX error in job #{name}."
+      fail "RAKE: LaTeX error in job #{jobname}."
     end
     # When in DVI mode, the DVI file will be created even with -draftmode
-    rm_f "#{name}.#{$LATEX_OUT_FMT}"
+    rm_f "#{jobname}.#{$LATEX_OUT_FMT}"
   end
 end
 
-def run_latex (dir, name, file, depth=0)
-  command = $LATEX_CMD + ['-jobname', name, file]
+def run_latex (jobname, depth=0)
+  file = $ALL_JOBS.fetch(jobname, jobname+'.tex')
+  command = $LATEX_CMD + ['-jobname', jobname, file]
   output = ""
-  Dir.chdir(dir) do
+  Dir.chdir($BUILD_DIR) do
     output = `#{shelljoin command}`
   end
   if $? != 0
     puts output
-    fail "RAKE: LaTeX error in job #{name}."
+    fail "RAKE: LaTeX error in job #{jobname}."
   else
     if output["Rerun to get cross-references right."]
       if depth > 4
         fail "Failed to resolve all cross-references after 4 attempts"
       else
-        msg "Rebuilding #{name} to get cross-references right"
-        run_latex dir, name, file, (depth+1)
+        msg "Rebuilding #{jobname} to get cross-references right"
+        run_latex jobname, (depth+1)
       end
     end
   end
@@ -456,52 +495,20 @@ rule( /^#{rexp_safe_build_dir}\/[^\/]*\.bbl$/ =>
         [bbl_file.sub(/\.[^.]+$/, '.aux')]+
           get_bibs_from_jobfile?(bbl_file)
       }) do |t|
-  bbl_file = t.name
-  jobname = File.basename(bbl_file, '.bbl')
-  aux = bbl_file.sub(/\.[^.]+$/, '.aux')
-  old_aux = aux + ".last_bib_run"
-  if has_citations?(aux)
-    force = true
-    if File.exists?(bbl_file)
-      force = t.prerequisites.detect do |p|
-        p.end_with?(".bib") and File.stat(p).mtime >= File.stat(bbl_file).mtime
-      end
-    end
-    if force or !File.exists?old_aux or !same_citations?(aux,old_aux)
-      msg 'Running BibTeX'
-      command = $BIBTEX_CMD + [jobname]
-      Dir.chdir($BUILD_DIR) do
-        system(*command)
-      end
-      unless $? == 0
-        fail "RAKE: BibTeX error in job #{jobname}."
-      end
-    end
-  else
-    if !File.exists?old_aux or !same_citations?(aux,old_aux)
-      # we would normally have run it; say why we aren't
-      msg 'No citations; skipping BibTeX'
-    end
-    if File.exists?(bbl_file)
-      rm bbl_file
-    end
-  end
-  cp aux, old_aux
+  run_bibtex(File.basename(t.name, '.bbl'))
 end
 
 rule( /^#{rexp_safe_build_dir}\/[^\/]*\.#{$LATEX_OUT_FMT}$/ =>
      ([jobFileToInputFile,bblFileIfHasBibs]+$BUILD_FILES)) do |t|
   jobname = File.basename(t.name, '.' + $LATEX_OUT_FMT)
-  inputfile = jobFileToInputFile.call(t.name)
   msg "Building #{jobname}"
-  run_latex $BUILD_DIR, jobname, File.basename(inputfile)
+  run_latex jobname
 end
 
 rule( /^#{rexp_safe_build_dir}\/[^\/]*\.aux$/ => ([jobFileToInputFile]+$BUILD_FILES)) do |t|
   jobname = File.basename(t.name, '.aux')
-  inputfile = jobFileToInputFile.call(t.name)
   msg "Building #{jobname} to find refs"
-  run_latex_draft $BUILD_DIR, jobname, File.basename(inputfile)
+  run_latex_draft jobname
 end
 
 rule( /^[^\/]*\.pdf$/ => [proc {|f|"#{$BUILD_DIR}/"+f}]) do |t|
