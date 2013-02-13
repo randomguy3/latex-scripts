@@ -234,14 +234,14 @@ end
 def run_bibtex(jobname)
   #jobname = File.basename(bbl_file, '.bbl')
   bbl_file = "#{$BUILD_DIR}/#{jobname}.bbl"
-  aux = bbl_file.sub(/\.[^.]+$/, '.aux')
+  aux = "#{$BUILD_DIR}/#{jobname}.aux"
   old_aux = aux + ".last_bib_run"
   did_change = false
   if has_citations?(aux)
     force = true
     if File.exists?(bbl_file)
       force = get_bibs_from_jobfile?(bbl_file).detect do |p|
-        File.stat(p).mtime >= File.stat(bbl_file).mtime
+        File.mtime(p) >= File.mtime(bbl_file)
       end
     end
     if force or !File.exists?old_aux or !same_citations?(aux,old_aux)
