@@ -241,7 +241,7 @@ def run_bibtex(jobname)
     force = true
     if File.exists?(bbl_file)
       force = get_bibs_from_jobfile?(bbl_file).detect do |p|
-        File.mtime(p) >= File.mtime(bbl_file)
+        File.mtime(p) > File.mtime(bbl_file)
       end
     end
     if force or !File.exists?old_aux or !same_citations?(aux,old_aux)
