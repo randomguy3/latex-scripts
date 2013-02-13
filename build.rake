@@ -286,17 +286,35 @@ def run_latex_draft (jobname)
 end
 
 def run_latex (jobname, depth=0)
+  aux = "#{$BUILD_DIR}/#{jobname}.aux"
+  old_aux = "#{$BUILD_DIR}/#{jobname}.aux.last_latex_run"
+  if File.exists?(aux)
+    cp aux, old_aux
+  end
+
   file = $ALL_JOBS.fetch(jobname, jobname+'.tex')
   command = $LATEX_CMD + ['-jobname', jobname, file]
   output = ""
+
   Dir.chdir($BUILD_DIR) do
     output = `#{shelljoin command}`
   end
+
   if $? != 0
     puts output
     fail "RAKE: LaTeX error in job #{jobname}."
   else
-    if run_bibtex(jobname) or output["Rerun to get cross-references right."]
+    need_to_run = false
+    if File.exists?(old_aux) and depth == 0
+      # LaTeX can get confused if the last run had an error and also
+      # introduced a change in labels, so we err on the side of doing
+      # extra work
+      need_to_run = !compare_file(aux,old_aux)
+      run_bibtex(jobname) if need_to_run
+    else
+      need_to_run = run_bibtex(jobname) || output["Rerun to get cross-references right."]
+    end
+    if need_to_run
       if depth > 4
         fail "Failed to resolve all cross-references after 4 attempts"
       else
