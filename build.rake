@@ -140,6 +140,9 @@ end
 if ENV['EPSTOPDF']
   $EPSTOPDF = ENV['EPSTOPDF']
 end
+if ENV['DOT']
+  $DOT = ENV['DOT']
+end
 
 if !(defined? $BUILD_DIR)
   $BUILD_DIR = 'build'
@@ -167,6 +170,12 @@ if !(defined? $EPSTOPDF)
 end
 if !(defined? $EPSTOPDF_OPTS)
   $EPSTOPDF_OPTS = []
+end
+if !(defined? $DOT)
+  $DOT = 'dot'
+end
+if !(defined? $DOT_OPTS)
+  $DOT_OPTS = []
 end
 
 
@@ -456,6 +465,22 @@ for f in $INCLUDE_FILES
         puts "#{shelljoin command}"
         puts output
         fail "RAKE: Could not create PDF file from EPS #{name}."
+      end
+    end
+  elsif File.extname(f) == '.dot'
+    fbase = File.basename f, '.dot'
+    fmt = $LATEX_OUT_FMT == 'pdf' ? 'pdf' : 'eps'
+    fmtarg = '-T' + fmt
+    fbuild = "#{$BUILD_DIR}/#{fbase}.#{fmt}"
+    $BUILD_FILES << fbuild
+    file fbuild => [$BUILD_DIR,f] do |t|
+      command = [$DOT] + $DOT_OPTS + [fmtarg,t.prerequisites[1],'-o',t.name]
+      output = ""
+      output = `#{shelljoin command}`
+      if $? != 0
+        puts "#{shelljoin command}"
+        puts output
+        fail "RAKE: Could not create #{fmt} file from dot file #{name}."
       end
     end
   else
