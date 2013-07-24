@@ -243,6 +243,7 @@ end
 
 def run_bibtex(jobname)
   bbl_file = "#{$BUILD_DIR}/#{jobname}.bbl"
+  old_bbl_file = bbl_file + ".last_bib_run"
   aux = "#{$BUILD_DIR}/#{jobname}.aux"
   old_aux = aux + ".last_bib_run"
   did_change = false
@@ -254,15 +255,26 @@ def run_bibtex(jobname)
       end
     end
     if force or !File.exists?old_aux or !same_citations?(aux,old_aux)
+      cp bbl_file, old_bbl_file if File.exists?(bbl_file)
+
       msg 'Running BibTeX'
       command = $BIBTEX_CMD + [jobname]
       Dir.chdir($BUILD_DIR) do
         system(*command)
       end
+
+      if File.exists?(old_bbl_file)
+        did_change = !compare_file(bbl_file,old_bbl_file)
+        rm_f old_bbl_file
+        # indicate why we're probably not rebuilding
+        msg 'Bibliography unchanged' if !did_change
+      else
+        did_change = true
+      end
+
       unless $? == 0
         fail "RAKE: BibTeX error in job #{jobname}."
       end
-      did_change = true
     end
   else
     if !File.exists?old_aux or !same_citations?(aux,old_aux)
