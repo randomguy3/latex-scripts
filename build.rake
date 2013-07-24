@@ -242,7 +242,6 @@ end
 #######################
 
 def run_bibtex(jobname)
-  #jobname = File.basename(bbl_file, '.bbl')
   bbl_file = "#{$BUILD_DIR}/#{jobname}.bbl"
   aux = "#{$BUILD_DIR}/#{jobname}.aux"
   old_aux = aux + ".last_bib_run"
