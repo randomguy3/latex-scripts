@@ -315,10 +315,7 @@ def run_latex (jobname, depth=0)
   else
     need_to_rebuild = run_bibtex(jobname)
     need_to_rebuild ||= output["Rerun to get cross-references right."]
-    # LaTeX can get confused if the last run had an error and also
-    # introduced a change in labels, so we err on the side of doing
-    # extra work
-    need_to_rebuild ||= (depth == 0 and File.exists?(old_aux) and !compare_file(aux,old_aux))
+    need_to_rebuild ||= (File.exists?(old_aux) and !compare_file(aux,old_aux))
 
     if need_to_rebuild
       if depth > 4
