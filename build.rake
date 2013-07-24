@@ -185,11 +185,12 @@ end
 ######################
 
 $BUILD_FILES = []
-$INCLUDE_FILES = Dir[ 'tex/*', 'figures/*', '*.bib' ] | $EXTRA_INCLUDES
+$INCLUDE_FILES = Dir[ 'tex/**/*', 'figures/**/*', '*.bib' ] | $EXTRA_INCLUDES
 $ALL_JOBS = $SIDE_JOBS.merge({$MAIN_JOB => $MAIN_FILE})
 $ALL_JOBS.each_value {|v| $INCLUDE_FILES << v}
 $INCLUDE_FILES << $HEADER if defined?$HEADER and !$INCLUDE_FILES.include?$HEADER
 $INCLUDE_FILES << $FOOTER if defined?$FOOTER and !$INCLUDE_FILES.include?$FOOTER
+$INCLUDE_FILES.select!{|f| not File.directory?(f)}
 
 if !(defined? $LATEX_OUT_FMT)
   $LATEX_OUT_FMT = 'pdf'
