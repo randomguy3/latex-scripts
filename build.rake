@@ -396,7 +396,7 @@ def get_bibs?(texfile)
     f.each_line do |ln|
       bibs = stripcomments(ln).scan(/\\bibliography\{([^}]*)\}/)
       for b in bibs
-        bibfiles << "#{$BUILD_DIR}/#{b[0].strip}.bib"
+        bibfiles << "#{b[0].strip}.bib"
       end
     end
   end
@@ -407,7 +407,7 @@ def get_bibs?(texfile)
       f.each_line do |ln|
         bibs = stripcomments(ln).scan(/\\bibliography\{([^}]*)\}/)
         for b in bibs
-          bibfiles << "#{$BUILD_DIR}/#{b[0].strip}.bib"
+          bibfiles << "#{b[0].strip}.bib"
         end
       end
     end
