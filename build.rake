@@ -628,6 +628,7 @@ task :arxiv => main_job_bbl_file()+[$DIST_NAME] do
   rm_f "#{$DIST_NAME}-arxiv.tar.gz"
   files = $INCLUDE_FILES+main_job_bbl_file()
   cp files, $DIST_NAME
+  rm_f Dir["#{$DIST_NAME}/*.bib"]
   system('tar', 'czf', "#{$DIST_NAME}-arxiv.tar.gz", $DIST_NAME)
   rm_rf $DIST_NAME
 end
