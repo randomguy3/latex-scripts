@@ -623,7 +623,7 @@ end
 
 desc "Create a tar archive suitable for uploading to the arXiv"
 # We don't include the bibfiles for arXiv
-task :arxiv => [main_job_bbl_file(),$DIST_NAME] do
+task :arxiv => main_job_bbl_file()+[$DIST_NAME] do
   msg "Creating (#{$DIST_NAME}-arxiv.tar.gz)"
   rm_f "#{$DIST_NAME}-arxiv.tar.gz"
   files = $INCLUDE_FILES+main_job_bbl_file()
